@@ -7,13 +7,27 @@
     "start": "electron .",
     "build": "electron-builder --win"
   },
+  "dependencies": {
+    "ffmpeg-static": "^5.2.0"
+  },
   "devDependencies": {
     "electron": "^42.2.0",
-    "electron-builder": "^26.8.1"
+    "electron-builder": "^26.0.12"
   },
   "build": {
     "appId": "com.focusrec.app",
     "productName": "FocusRec",
+    "files": [
+      "**/*",
+      "!node_modules/ffmpeg-static/ffmpeg",
+      "node_modules/ffmpeg-static/ffmpeg.exe"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/ffmpeg-static/ffmpeg.exe",
+        "to": "ffmpeg.exe"
+      }
+    ],
     "win": {
       "target": "nsis",
       "icon": "assets/icon.ico"
