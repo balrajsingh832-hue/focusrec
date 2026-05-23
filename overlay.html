@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: transparent;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  #cursor-ring {
+    position: fixed;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: 3px solid rgba(124,92,252,0.8);
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: transform 0.05s, left 0.05s, top 0.05s;
+    box-shadow: 0 0 12px rgba(124,92,252,0.5);
+    display: none;
+  }
+  .ripple {
+    position: fixed;
+    border-radius: 50%;
+    border: 2px solid rgba(124,92,252,0.6);
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    animation: ripple-out 0.6s ease-out forwards;
+  }
+  @keyframes ripple-out {
+    0% { width: 10px; height: 10px; opacity: 1; }
+    100% { width: 80px; height: 80px; opacity: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="cursor-ring"></div>
+<script>
+  const ring = document.getElementById('cursor-ring');
+  let visible = false;
+
+  window.electronAPI.onOverlayShow(() => {
+    ring.style.display = 'block';
+    visible = true;
+  });
+  window.electronAPI.onOverlayHide(() => {
+    ring.style.display = 'none';
+    visible = false;
+  });
+
+  window.electronAPI.onCursorPos((pos) => {
+    if (!visible) return;
+    ring.style.left = pos.x + 'px';
+    ring.style.top = pos.y + 'px';
+  });
+
+  // Ripple on click (simulated via interval for demo)
+  document.addEventListener('click', (e) => {
+    const r = document.createElement('div');
+    r.className = 'ripple';
+    r.style.left = e.clientX + 'px';
+    r.style.top = e.clientY + 'px';
+    document.body.appendChild(r);
+    setTimeout(() => r.remove(), 700);
+  });
+</script>
+</body>
+</html>

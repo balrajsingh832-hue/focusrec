@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FocusRec</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --bg: #0f0f13;
+    --surface: #1a1a24;
+    --surface2: #22222f;
+    --border: #2e2e42;
+    --accent: #7c5cfc;
+    --accent2: #5c9cfc;
+    --red: #fc5c5c;
+    --green: #5cfca0;
+    --text: #e8e8f0;
+    --text2: #9090aa;
+    --radius: 12px;
+  }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* Title Bar */
+  .titlebar {
+    height: 40px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    -webkit-app-region: drag;
+    gap: 12px;
+  }
+  .titlebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .titlebar-logo .dot {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  .titlebar-spacer { flex: 1; }
+  .titlebar-controls {
+    display: flex;
+    gap: 6px;
+    -webkit-app-region: no-drag;
+  }
+  .win-btn {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    background: var(--surface2);
+    color: var(--text2);
+  }
+  .win-btn:hover { background: var(--border); color: var(--text); }
+  .win-btn.close:hover { background: var(--red); color: #fff; }
+
+  /* Layout */
+  .app-body {
+    display: flex;
+    height: calc(100vh - 40px);
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 220px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 16px 10px;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .nav-section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text2);
+    padding: 8px 10px 4px;
+    font-weight: 600;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 13px;
+    color: var(--text2);
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: rgba(124,92,252,0.15); color: var(--accent); }
+  .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .sidebar-bottom { margin-top: auto; }
+
+  /* Main Content */
+  .main-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  /* Pages */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* Record Page */
+  .page-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .page-subtitle { color: var(--text2); font-size: 13px; margin-bottom: 24px; }
+
+  /* Source Selection */
+  .sources-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .source-card {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .source-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .source-card.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,92,252,0.2); }
+  .source-thumb {
+    width: 100%;
+    aspect-ratio: 16/9;
+    object-fit: cover;
+    background: var(--surface2);
+    display: block;
+  }
+  .source-name {
+    padding: 8px 10px;
+    font-size: 12px;
+    color: var(--text2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .source-card.selected .source-name { color: var(--accent); }
+
+  /* Settings Panel */
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .setting-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .setting-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text2);
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .toggle-row:last-child { margin-bottom: 0; }
+  .toggle-name { font-size: 13px; }
+  .toggle {
+    width: 36px; height: 20px;
+    background: var(--border);
+    border-radius: 10px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+    border: none;
+    flex-shrink: 0;
+  }
+  .toggle.on { background: var(--accent); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 14px; height: 14px;
+    background: #fff;
+    border-radius: 50%;
+    top: 3px; left: 3px;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  .toggle.on::after { transform: translateX(16px); }
+
+  select, input[type=range] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    outline: none;
+    cursor: pointer;
+  }
+  select:focus { border-color: var(--accent); }
+  input[type=range] { padding: 4px 0; cursor: pointer; accent-color: var(--accent); }
+  .range-val { text-align: right; font-size: 12px; color: var(--accent); margin-top: 4px; }
+
+  /* Record Controls */
+  .record-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    padding: 10px 22px;
+    border-radius: 8px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(124,92,252,0.3);
+  }
+  .btn-primary:hover { background: #8d6dfd; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn-danger {
+    background: var(--red);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(252,92,92,0.3);
+  }
+  .btn-danger:hover { background: #fd7070; }
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: var(--border); }
+  .btn-success {
+    background: #1a8c5c;
+    color: #fff;
+  }
+  .btn-success:hover { background: #1fa86e; }
+
+  /* Recording indicator */
+  .rec-badge {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    background: rgba(252,92,92,0.1);
+    border: 1px solid rgba(252,92,92,0.3);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--red);
+  }
+  .rec-badge.visible { display: flex; }
+  .rec-dot {
+    width: 8px; height: 8px;
+    background: var(--red);
+    border-radius: 50%;
+    animation: blink 1s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .timer {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: var(--text2);
+    min-width: 60px;
+  }
+
+  /* Preview Section */
+  .preview-section {
+    margin-top: 24px;
+    display: none;
+  }
+  .preview-section.visible { display: block; }
+  .preview-section h3 { font-size: 15px; margin-bottom: 12px; }
+  .preview-wrap {
+    background: #000;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    max-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #preview-video {
+    width: 100%;
+    max-height: 300px;
+    display: block;
+  }
+  .preview-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  /* Effects Page */
+  .effects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .effect-card {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .effect-card:hover { border-color: var(--accent2); }
+  .effect-card.active { border-color: var(--accent); background: rgba(124,92,252,0.08); }
+  .effect-icon { font-size: 28px; margin-bottom: 8px; }
+  .effect-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .effect-desc { font-size: 11px; color: var(--text2); }
+
+  .zoom-preview {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .zoom-demo {
+    width: 100%;
+    height: 120px;
+    background: linear-gradient(135deg, var(--surface2) 0%, #1e1e2e 100%);
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+  }
+  .zoom-circle {
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    background: rgba(124,92,252,0.3);
+    border: 2px solid var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    animation: pulse-zoom 2s infinite;
+  }
+  @keyframes pulse-zoom {
+    0%,100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+  }
+
+  /* Recordings page */
+  .recordings-list { display: flex; flex-direction: column; gap: 10px; }
+  .recording-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .rec-icon { font-size: 24px; }
+  .rec-info { flex: 1; }
+  .rec-filename { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+  .rec-meta { font-size: 12px; color: var(--text2); }
+  .rec-actions { display: flex; gap: 8px; }
+  .btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-sm:hover { background: var(--border); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Load sources btn */
+  .refresh-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 12px;
+    margin-bottom: 12px;
+    transition: all 0.15s;
+  }
+  .refresh-btn:hover { color: var(--text); border-color: var(--accent); }
+
+  /* Status */
+  .status-bar {
+    height: 28px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 16px;
+    font-size: 11px;
+    color: var(--text2);
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+  }
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+  }
+  .status-dot.recording { background: var(--red); animation: blink 1s infinite; }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .section-title { font-size: 15px; font-weight: 600; }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text2);
+  }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-text { font-size: 14px; }
+
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+</style>
+</head>
+<body>
+
+<!-- Title Bar -->
+<div class="titlebar">
+  <div class="titlebar-logo">
+    <div class="dot"></div>
+    FocusRec
+  </div>
+  <div class="titlebar-spacer"></div>
+  <div class="titlebar-controls">
+    <button class="win-btn" onclick="window.electronAPI.windowMinimize()">─</button>
+    <button class="win-btn" onclick="window.electronAPI.windowMaximize()">□</button>
+    <button class="win-btn close" onclick="window.electronAPI.windowClose()">✕</button>
+  </div>
+</div>
+
+<!-- App Body -->
+<div class="app-body">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="nav-section-label">Recording</div>
+    <div class="nav-item active" onclick="showPage('record', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>
+      </svg>
+      Record
+    </div>
+    <div class="nav-item" onclick="showPage('effects', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+      </svg>
+      Effects
+    </div>
+
+    <div class="nav-section-label">Library</div>
+    <div class="nav-item" onclick="showPage('recordings', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="2" width="20" height="20" rx="3"/><path d="M10 8l6 4-6 4V8z" fill="currentColor" stroke="none"/>
+      </svg>
+      Recordings
+    </div>
+
+    <div class="sidebar-bottom">
+      <div class="nav-section-label">App</div>
+      <div class="nav-item" onclick="showPage('settings', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        Settings
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content" style="padding-bottom: 50px;">
+
+    <!-- Record Page -->
+    <div id="page-record" class="page active">
+      <div class="page-title">New Recording</div>
+      <div class="page-subtitle">Select a screen or window to capture</div>
+
+      <button class="refresh-btn" onclick="loadSources()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/>
+        </svg>
+        Refresh Sources
+      </button>
+
+      <div class="sources-grid" id="sources-grid">
+        <div style="grid-column:1/-1; text-align:center; padding:40px; color:var(--text2); font-size:13px;">
+          Click "Refresh Sources" to load available screens & windows
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="settings-grid">
+        <div class="setting-card">
+          <div class="setting-label">Audio</div>
+          <div class="toggle-row">
+            <span class="toggle-name">Microphone</span>
+            <button class="toggle on" id="toggle-mic" onclick="toggleSetting(this, 'mic')"></button>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-name">System Audio</span>
+            <button class="toggle" id="toggle-sys" onclick="toggleSetting(this, 'sys')"></button>
+          </div>
+        </div>
+        <div class="setting-card">
+          <div class="setting-label">Quality</div>
+          <div style="margin-bottom:10px;">
+            <div class="toggle-row" style="margin-bottom:6px;">
+              <span class="toggle-name">Resolution</span>
+            </div>
+            <select id="quality-select">
+              <option value="1080">1080p (Full HD)</option>
+              <option value="720" selected>720p (HD)</option>
+              <option value="480">480p</option>
+            </select>
+          </div>
+          <div>
+            <div class="toggle-row" style="margin-bottom:6px;">
+              <span class="toggle-name">Frame Rate</span>
+            </div>
+            <select id="fps-select">
+              <option value="60">60 FPS</option>
+              <option value="30" selected>30 FPS</option>
+              <option value="24">24 FPS</option>
+            </select>
+          </div>
+        </div>
+        <div class="setting-card">
+          <div class="setting-label">Auto Zoom</div>
+          <div class="toggle-row">
+            <span class="toggle-name">Enable Auto Zoom</span>
+            <button class="toggle on" id="toggle-zoom" onclick="toggleSetting(this, 'zoom')"></button>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-name">Cursor Highlight</span>
+            <button class="toggle on" id="toggle-cursor" onclick="toggleSetting(this, 'cursor')"></button>
+          </div>
+          <div style="margin-top:8px;">
+            <div style="font-size:12px; color:var(--text2); margin-bottom:4px;">Zoom Strength</div>
+            <input type="range" id="zoom-strength" min="1.2" max="3" step="0.1" value="1.8"
+              oninput="document.getElementById('zoom-val').textContent=this.value+'x'">
+            <div class="range-val" id="zoom-val">1.8x</div>
+          </div>
+        </div>
+        <div class="setting-card">
+          <div class="setting-label">Cursor Effects</div>
+          <div style="margin-bottom:10px;">
+            <select id="cursor-style">
+              <option value="circle">Circle Highlight</option>
+              <option value="spotlight">Spotlight</option>
+              <option value="ripple" selected>Ripple</option>
+              <option value="crosshair">Crosshair</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--text2); margin-bottom:4px;">Cursor Size</div>
+            <input type="range" id="cursor-size" min="20" max="80" step="5" value="40"
+              oninput="document.getElementById('cursor-size-val').textContent=this.value+'px'">
+            <div class="range-val" id="cursor-size-val">40px</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="record-controls">
+        <button class="btn btn-primary" id="btn-start" onclick="startRecording()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg>
+          Start Recording
+        </button>
+        <button class="btn btn-danger" id="btn-stop" onclick="stopRecording()" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+          Stop Recording
+        </button>
+        <div class="rec-badge" id="rec-badge">
+          <div class="rec-dot"></div>
+          REC
+        </div>
+        <div class="timer" id="rec-timer">00:00</div>
+      </div>
+
+      <div class="preview-section" id="preview-section">
+        <div class="section-header">
+          <div class="section-title">Preview</div>
+        </div>
+        <div class="preview-wrap">
+          <video id="preview-video" controls></video>
+        </div>
+        <div class="preview-actions">
+          <button class="btn btn-success" onclick="exportVideo()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Export Video
+          </button>
+          <button class="btn btn-secondary" onclick="discardVideo()">Discard</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Effects Page -->
+    <div id="page-effects" class="page">
+      <div class="page-title">Visual Effects</div>
+      <div class="page-subtitle">Choose cursor & zoom effects for your recordings</div>
+
+      <div class="zoom-preview">
+        <div class="zoom-demo">
+          <div class="zoom-circle">🖱️</div>
+        </div>
+        <div style="font-size:12px; color:var(--text2);">Live preview of cursor effect</div>
+      </div>
+
+      <div class="section-title" style="margin-bottom:12px;">Zoom Behavior</div>
+      <div class="effects-grid">
+        <div class="effect-card active" onclick="selectEffect(this, 'zoom-auto')">
+          <div class="effect-icon">🔍</div>
+          <div class="effect-name">Auto Zoom</div>
+          <div class="effect-desc">Zooms on each click automatically</div>
+        </div>
+        <div class="effect-card" onclick="selectEffect(this, 'zoom-smooth')">
+          <div class="effect-icon">🎞️</div>
+          <div class="effect-name">Smooth Pan</div>
+          <div class="effect-desc">Smooth pan & zoom transitions</div>
+        </div>
+        <div class="effect-card" onclick="selectEffect(this, 'zoom-none')">
+          <div class="effect-icon">⬜</div>
+          <div class="effect-name">No Zoom</div>
+          <div class="effect-desc">Plain recording, no zoom</div>
+        </div>
+      </div>
+
+      <div class="section-title" style="margin-bottom:12px;">Cursor Style</div>
+      <div class="effects-grid">
+        <div class="effect-card active" onclick="selectCursorFx(this, 'ripple')">
+          <div class="effect-icon">💧</div>
+          <div class="effect-name">Ripple</div>
+          <div class="effect-desc">Ripple on click</div>
+        </div>
+        <div class="effect-card" onclick="selectCursorFx(this, 'spotlight')">
+          <div class="effect-icon">💡</div>
+          <div class="effect-name">Spotlight</div>
+          <div class="effect-desc">Spotlight follows cursor</div>
+        </div>
+        <div class="effect-card" onclick="selectCursorFx(this, 'circle')">
+          <div class="effect-icon">🔵</div>
+          <div class="effect-name">Circle</div>
+          <div class="effect-desc">Colored circle highlight</div>
+        </div>
+        <div class="effect-card" onclick="selectCursorFx(this, 'crosshair')">
+          <div class="effect-icon">🎯</div>
+          <div class="effect-name">Crosshair</div>
+          <div class="effect-desc">Crosshair overlay</div>
+        </div>
+      </div>
+
+      <div class="section-title" style="margin-bottom:12px;">Background</div>
+      <div class="effects-grid">
+        <div class="effect-card active" onclick="selectBg(this, 'dark')">
+          <div class="effect-icon" style="background:#111;border-radius:8px;width:40px;height:40px;margin:0 auto 8px;"></div>
+          <div class="effect-name">Dark</div>
+          <div class="effect-desc">Clean dark background</div>
+        </div>
+        <div class="effect-card" onclick="selectBg(this, 'gradient')">
+          <div class="effect-icon" style="background:linear-gradient(135deg,#7c5cfc,#5c9cfc);border-radius:8px;width:40px;height:40px;margin:0 auto 8px;"></div>
+          <div class="effect-name">Gradient</div>
+          <div class="effect-desc">Purple gradient</div>
+        </div>
+        <div class="effect-card" onclick="selectBg(this, 'blur')">
+          <div class="effect-icon">🌫️</div>
+          <div class="effect-name">Blur</div>
+          <div class="effect-desc">Blurred desktop</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recordings Page -->
+    <div id="page-recordings" class="page">
+      <div class="page-title">My Recordings</div>
+      <div class="page-subtitle">All your saved recordings</div>
+      <div class="recordings-list" id="recordings-list">
+        <div class="empty-state">
+          <div class="empty-icon">🎬</div>
+          <div class="empty-text">No recordings yet. Start recording to see them here.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Page -->
+    <div id="page-settings" class="page">
+      <div class="page-title">Settings</div>
+      <div class="page-subtitle">Configure FocusRec to your preferences</div>
+
+      <div class="settings-grid">
+        <div class="setting-card">
+          <div class="setting-label">General</div>
+          <div class="toggle-row">
+            <span class="toggle-name">Start minimized</span>
+            <button class="toggle" onclick="toggleSetting(this)"></button>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-name">Show countdown</span>
+            <button class="toggle on" onclick="toggleSetting(this)"></button>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-name">Auto-save recordings</span>
+            <button class="toggle on" onclick="toggleSetting(this)"></button>
+          </div>
+        </div>
+        <div class="setting-card">
+          <div class="setting-label">Output</div>
+          <div style="margin-bottom:10px;">
+            <div style="font-size:12px; color:var(--text2); margin-bottom:6px;">Default Format</div>
+            <select>
+              <option>WebM (Default)</option>
+              <option>MP4</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--text2); margin-bottom:6px;">Bitrate</div>
+            <select>
+              <option>8 Mbps (High)</option>
+              <option selected>4 Mbps (Medium)</option>
+              <option>2 Mbps (Low)</option>
+            </select>
+          </div>
+        </div>
+        <div class="setting-card">
+          <div class="setting-label">Shortcuts</div>
+          <div style="font-size:13px; color:var(--text2); line-height:2;">
+            <div>Start Record: <strong style="color:var(--accent)">Ctrl+Shift+R</strong></div>
+            <div>Stop Record: <strong style="color:var(--accent)">Ctrl+Shift+S</strong></div>
+            <div>Pause: <strong style="color:var(--accent)">Ctrl+Shift+P</strong></div>
+          </div>
+        </div>
+        <div class="setting-card">
+          <div class="setting-label">About</div>
+          <div style="font-size:13px; line-height:2; color:var(--text2);">
+            <div>FocusRec <strong style="color:var(--text)">v1.0.0</strong></div>
+            <div>Electron <strong style="color:var(--text)">v42</strong></div>
+            <div>Platform: <strong style="color:var(--text)">Windows</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <div class="status-dot" id="status-dot"></div>
+  <span id="status-text">Ready</span>
+  <span style="margin-left:auto; color:var(--text2)">FocusRec v1.0</span>
+</div>
+
+<script>
+// State
+const state = {
+  selectedSource: null,
+  mediaRecorder: null,
+  chunks: [],
+  recordedBlob: null,
+  timerInterval: null,
+  seconds: 0,
+  settings: { mic: true, sys: false, zoom: true, cursor: true },
+  recordings: [],
+  zoomEffect: 'zoom-auto',
+  cursorFx: 'ripple',
+  bg: 'dark',
+};
+
+// Navigation
+function showPage(pageId, navEl) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + pageId).classList.add('active');
+  if (navEl) navEl.classList.add('active');
+}
+
+// Load screen sources
+async function loadSources() {
+  const grid = document.getElementById('sources-grid');
+  grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text2)">Loading...</div>';
+  try {
+    const sources = await window.electronAPI.getSources();
+    grid.innerHTML = '';
+    sources.forEach(src => {
+      const card = document.createElement('div');
+      card.className = 'source-card';
+      card.dataset.id = src.id;
+      card.innerHTML = `
+        <img class="source-thumb" src="${src.thumbnail}" />
+        <div class="source-name" title="${src.name}">${src.name}</div>
+      `;
+      card.onclick = () => {
+        document.querySelectorAll('.source-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        state.selectedSource = src;
+      };
+      grid.appendChild(card);
+    });
+    if (!sources.length) {
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text2)">No sources found</div>';
+    }
+  } catch(e) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--red)">Error loading sources: ' + e.message + '</div>';
+  }
+}
+
+// Toggle settings
+function toggleSetting(btn, key) {
+  btn.classList.toggle('on');
+  if (key) state.settings[key] = btn.classList.contains('on');
+}
+
+// Start recording
+async function startRecording() {
+  if (!state.selectedSource) {
+    alert('Please select a screen or window first!');
+    return;
+  }
+  try {
+    const constraints = {
+      audio: state.settings.mic ? {
+        mandatory: { chromeMediaSource: 'desktop' }
+      } : false,
+      video: {
+        mandatory: {
+          chromeMediaSource: 'desktop',
+          chromeMediaSourceId: state.selectedSource.id,
+          minWidth: 1280, maxWidth: 1920,
+          minHeight: 720, maxHeight: 1080,
+          maxFrameRate: parseInt(document.getElementById('fps-select').value),
+        }
+      }
+    };
+
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+    // Add mic if enabled
+    if (state.settings.mic) {
+      try {
+        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        micStream.getAudioTracks().forEach(t => stream.addTrack(t));
+      } catch(e) { /* mic not available */ }
+    }
+
+    state.chunks = [];
+    state.mediaRecorder = new MediaRecorder(stream, {
+      mimeType: 'video/webm;codecs=vp9',
+      videoBitsPerSecond: 4 * 1024 * 1024,
+    });
+    state.mediaRecorder.ondataavailable = e => { if (e.data.size > 0) state.chunks.push(e.data); };
+    state.mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      state.recordedBlob = new Blob(state.chunks, { type: 'video/webm' });
+      showPreview(state.recordedBlob);
+    };
+    state.mediaRecorder.start(100);
+
+    // UI updates
+    document.getElementById('btn-start').style.display = 'none';
+    document.getElementById('btn-stop').style.display = '';
+    document.getElementById('rec-badge').classList.add('visible');
+    document.getElementById('status-dot').classList.add('recording');
+    document.getElementById('status-text').textContent = 'Recording...';
+
+    // Overlay & timer
+    window.electronAPI.showOverlay();
+    state.seconds = 0;
+    updateTimer();
+    state.timerInterval = setInterval(updateTimer, 1000);
+    trackCursor();
+
+  } catch(e) {
+    alert('Could not start recording: ' + e.message);
+  }
+}
+
+function trackCursor() {
+  if (!state.mediaRecorder || state.mediaRecorder.state !== 'recording') return;
+  // We track mouse via mousemove on the document
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (state.mediaRecorder && state.mediaRecorder.state === 'recording') {
+    window.electronAPI.updateCursor({ x: e.screenX, y: e.screenY });
+  }
+});
+
+function updateTimer() {
+  const m = String(Math.floor(state.seconds / 60)).padStart(2, '0');
+  const s = String(state.seconds % 60).padStart(2, '0');
+  document.getElementById('rec-timer').textContent = m + ':' + s;
+  state.seconds++;
+}
+
+// Stop recording
+function stopRecording() {
+  if (state.mediaRecorder) state.mediaRecorder.stop();
+  clearInterval(state.timerInterval);
+  window.electronAPI.hideOverlay();
+
+  document.getElementById('btn-start').style.display = '';
+  document.getElementById('btn-stop').style.display = 'none';
+  document.getElementById('rec-badge').classList.remove('visible');
+  document.getElementById('status-dot').classList.remove('recording');
+  document.getElementById('status-text').textContent = 'Processing...';
+  setTimeout(() => document.getElementById('status-text').textContent = 'Ready', 1500);
+}
+
+// Show preview
+function showPreview(blob) {
+  const url = URL.createObjectURL(blob);
+  const video = document.getElementById('preview-video');
+  video.src = url;
+  document.getElementById('preview-section').classList.add('visible');
+}
+
+// Export video
+async function exportVideo() {
+  if (!state.recordedBlob) return;
+  const ts = new Date().toISOString().replace(/[:.]/g,'-').slice(0,-5);
+  const filename = 'FocusRec_' + ts + '.webm';
+  const filePath = await window.electronAPI.getSavePath(filename);
+  if (!filePath) return;
+
+  const buf = await state.recordedBlob.arrayBuffer();
+  const result = await window.electronAPI.saveVideo({ buffer: Array.from(new Uint8Array(buf)), filePath });
+
+  if (result.success) {
+    // Add to recordings list
+    const rec = { name: filename, path: filePath, date: new Date().toLocaleString(), duration: document.getElementById('rec-timer').textContent };
+    state.recordings.unshift(rec);
+    updateRecordingsList();
+    alert('Video saved successfully!');
+    discardVideo();
+  } else {
+    alert('Save failed: ' + result.error);
+  }
+}
+
+function discardVideo() {
+  state.recordedBlob = null;
+  const video = document.getElementById('preview-video');
+  URL.revokeObjectURL(video.src);
+  video.src = '';
+  document.getElementById('preview-section').classList.remove('visible');
+  document.getElementById('rec-timer').textContent = '00:00';
+}
+
+// Recordings list
+function updateRecordingsList() {
+  const list = document.getElementById('recordings-list');
+  if (!state.recordings.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">🎬</div><div class="empty-text">No recordings yet.</div></div>';
+    return;
+  }
+  list.innerHTML = state.recordings.map((r, i) => `
+    <div class="recording-item">
+      <div class="rec-icon">🎥</div>
+      <div class="rec-info">
+        <div class="rec-filename">${r.name}</div>
+        <div class="rec-meta">${r.date} · Duration: ${r.duration}</div>
+      </div>
+      <div class="rec-actions">
+        <button class="btn-sm" onclick="openRecording(${i})">Open Folder</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openRecording(i) {
+  // Would open folder in production
+  alert('File saved at:\n' + state.recordings[i].path);
+}
+
+// Effects selectors
+function selectEffect(card, val) {
+  card.closest('.effects-grid').querySelectorAll('.effect-card').forEach(c => c.classList.remove('active'));
+  card.classList.add('active');
+  state.zoomEffect = val;
+}
+function selectCursorFx(card, val) {
+  card.closest('.effects-grid').querySelectorAll('.effect-card').forEach(c => c.classList.remove('active'));
+  card.classList.add('active');
+  state.cursorFx = val;
+}
+function selectBg(card, val) {
+  card.closest('.effects-grid').querySelectorAll('.effect-card').forEach(c => c.classList.remove('active'));
+  card.classList.add('active');
+  state.bg = val;
+}
+</script>
+</body>
+</html>
