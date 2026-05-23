@@ -23,7 +23,7 @@ function createMainWindow() {
     icon: path.join(__dirname, 'assets', 'icon.png'),
   });
 
-  mainWindow.loadFile('src/index.html');
+  mainWindow.loadFile('index.html');
 }
 
 function createOverlayWindow() {
@@ -44,7 +44,7 @@ function createOverlayWindow() {
       nodeIntegration: false,
     },
   });
-  overlayWindow.loadFile('src/overlay.html');
+  overlayWindow.loadFile('overlay.html');
   overlayWindow.setIgnoreMouseEvents(true);
   overlayWindow.hide();
 }
