@@ -131,7 +131,7 @@ video { width:100%; max-height:280px; display:block; }
       <div class="ps">Record your screen with automatic smooth zoom effects</div>
 
       <div class="info-box">
-        💡 <strong>How it works:</strong> Start recording and use your screen normally. FocusRec tracks your cursor movements and clicks. When you stop, it automatically adds smooth spring-animated zoom effects — exactly like Recordly!
+        💡 <strong>How it works:</strong> Start recording and click anywhere on screen. FocusRec tracks every click and applies smooth spring-animated zoom — just like Recordly!
       </div>
 
       <button class="rbtn" onclick="loadSources()">
@@ -180,12 +180,12 @@ video { width:100%; max-height:280px; display:block; }
         <div class="sc">
           <div class="sl">Zoom Duration</div>
           <div style="margin-top:4px">
-            <div style="font-size:12px;color:var(--text2);margin-bottom:4px">Zoom In Duration</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:4px">Zoom In</div>
             <input type="range" id="zoom-in-dur" min="200" max="1000" step="50" value="400" oninput="document.getElementById('zid').textContent=this.value+'ms'">
             <div class="rv" id="zid">400ms</div>
           </div>
           <div style="margin-top:8px">
-            <div style="font-size:12px;color:var(--text2);margin-bottom:4px">Zoom Out Duration</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:4px">Zoom Out</div>
             <input type="range" id="zoom-out-dur" min="200" max="1500" step="50" value="600" oninput="document.getElementById('zod').textContent=this.value+'ms'">
             <div class="rv" id="zod">600ms</div>
           </div>
@@ -203,7 +203,7 @@ video { width:100%; max-height:280px; display:block; }
         </button>
         <div class="rbadge" id="rbadge"><div class="rdot"></div>REC</div>
         <div class="timer" id="timer">00:00</div>
-        <div class="cbadge" id="cbadge">🖱️ 0 cursor points</div>
+        <div class="cbadge" id="cbadge">🖱️ 0 clicks</div>
       </div>
 
       <div class="prev-sec" id="prev-sec">
@@ -234,512 +234,398 @@ video { width:100%; max-height:280px; display:block; }
 <div class="sbar">
   <div class="sdot" id="sdot"></div>
   <span id="stext">Ready</span>
-  <span style="margin-left:auto">FocusRec v2.0</span>
+  <span style="margin-left:auto">FocusRec v2.1</span>
 </div>
 
 <canvas id="proc-canvas" style="display:none"></canvas>
 
 <script>
-// ═══════════════════════════════════════════════════════
-// SPRING PHYSICS ENGINE — Ported from Recordly source
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════
+// SPRING PHYSICS — from Recordly source
+// ═══════════════════════════════════════════
 
-// Clamp delta time (same as Recordly's Rxa)
-function clampDelta(dt, fallback = 1000/60) {
-  return !Number.isFinite(dt) || dt <= 0 ? fallback : Math.min(80, Math.max(1, dt));
+function clampDelta(dt, fallback=1000/60) {
+  return !Number.isFinite(dt)||dt<=0 ? fallback : Math.min(80,Math.max(1,dt));
 }
 
-// Underdamped spring integration (same as Recordly's Nxa)
 function springIntegrate(dt, target, displacement, velocity, dampingRatio, angularFreq) {
   if (dampingRatio < 1) {
-    const w = angularFreq * Math.sqrt(1 - dampingRatio * dampingRatio);
-    return target - Math.exp(-dampingRatio * angularFreq * dt) *
-      ((velocity + dampingRatio * angularFreq * displacement) / w * Math.sin(w * dt) +
-       displacement * Math.cos(w * dt));
+    const w = angularFreq * Math.sqrt(1 - dampingRatio*dampingRatio);
+    return target - Math.exp(-dampingRatio*angularFreq*dt) *
+      ((velocity + dampingRatio*angularFreq*displacement)/w * Math.sin(w*dt) +
+       displacement * Math.cos(w*dt));
   }
   if (dampingRatio === 1) {
-    return target - Math.exp(-angularFreq * dt) * (displacement + (velocity + angularFreq * displacement) * dt);
+    return target - Math.exp(-angularFreq*dt) * (displacement + (velocity+angularFreq*displacement)*dt);
   }
-  const w = angularFreq * Math.sqrt(dampingRatio * dampingRatio - 1);
-  const c = Math.exp(-dampingRatio * angularFreq * dt);
-  const i = Math.min(w * dt, 300);
-  return target - c * ((velocity + dampingRatio * angularFreq * displacement) * Math.sinh(i) +
-    w * displacement * Math.cosh(i)) / w;
+  const w = angularFreq * Math.sqrt(dampingRatio*dampingRatio-1);
+  const c = Math.exp(-dampingRatio*angularFreq*dt);
+  const i = Math.min(w*dt, 300);
+  return target - c*((velocity+dampingRatio*angularFreq*displacement)*Math.sinh(i)+w*displacement*Math.cosh(i))/w;
 }
 
-// Build spring config from smoothness (same as Recordly's Txa + xxa)
-function buildSpringConfig(smoothness = 0.5, multipliers = {}) {
+function buildSpringConfig(smoothness=0.5) {
   const t = Math.max(0, Math.min(1, smoothness));
-  let config;
-  if (t <= 0) {
-    config = { stiffness: 1000, damping: 100, mass: 1, restDelta: 1e-4, restSpeed: 0.001 };
-  } else {
-    const n = 2 * t;
-    config = { stiffness: 100 / n, damping: 21, mass: 1 * n, restDelta: 5e-4, restSpeed: 0.015 };
-  }
-  const sm = v => typeof v === 'number' && Number.isFinite(v) ? Math.max(0.01, v) : 1;
-  return {
-    ...config,
-    stiffness: config.stiffness * sm(multipliers.stiffness),
-    damping: config.damping * sm(multipliers.damping),
-    mass: config.mass * sm(multipliers.mass),
-  };
+  if (t <= 0) return { stiffness:1000, damping:100, mass:1, restDelta:1e-4, restSpeed:0.001 };
+  const n = 2*t;
+  return { stiffness:100/n, damping:21, mass:1*n, restDelta:5e-4, restSpeed:0.015 };
 }
 
-// Spring state
-function makeSpring(v = 0) {
-  return { value: v, velocity: 0, initialized: false };
-}
+function makeSpring(v=0) { return { value:v, velocity:0, initialized:false }; }
 
-// Reset spring (Recordly's Ixa)
-function resetSpring(spring, value) {
-  if (typeof value === 'number') spring.value = value;
-  spring.velocity = 0;
-  spring.initialized = false;
-}
-
-// Step spring toward target (Recordly's kxa)
 function stepSpring(spring, target, dt, config) {
-  const dtClamped = clampDelta(dt);
+  const dtc = clampDelta(dt);
   if (!spring.initialized || !Number.isFinite(spring.value)) {
-    spring.value = target; spring.velocity = 0; spring.initialized = true;
-    return spring.value;
+    spring.value=target; spring.velocity=0; spring.initialized=true; return spring.value;
   }
-  const { restDelta = 5e-4, restSpeed = 0.02, stiffness, damping, mass } = config;
-  if (Math.abs(target - spring.value) <= restDelta && Math.abs(spring.velocity) <= restSpeed) {
-    spring.value = target; spring.velocity = 0;
-    return spring.value;
+  const { restDelta=5e-4, restSpeed=0.02, stiffness, damping, mass } = config;
+  if (Math.abs(target-spring.value)<=restDelta && Math.abs(spring.velocity)<=restSpeed) {
+    spring.value=target; spring.velocity=0; return spring.value;
   }
-  const angularFreq = Math.sqrt(stiffness / mass);
-  const dampingRatio = damping / (2 * Math.sqrt(stiffness * mass));
-  const displacement = spring.value - target;
-  const p = dtClamped / 1000;
-  const newValue = springIntegrate(p, target, displacement, -spring.velocity, dampingRatio, angularFreq);
-  spring.velocity = (newValue - spring.value) / p;
-  spring.value = newValue;
+  const af = Math.sqrt(stiffness/mass);
+  const dr = damping/(2*Math.sqrt(stiffness*mass));
+  const disp = spring.value - target;
+  const p = dtc/1000;
+  const newVal = springIntegrate(p, target, disp, -spring.velocity, dr, af);
+  spring.velocity = (newVal - spring.value) / p;
+  spring.value = newVal;
   return spring.value;
 }
 
-// ═══════════════════════════════════════════════════════
-// ZOOM REGION SYSTEM — Ported from Recordly
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════
+// ZOOM REGION SYSTEM
+// ═══════════════════════════════════════════
 
-// Calculate camera transform from zoom state (Recordly's fIa)
-function calcCameraTransform({ stageW, stageH, maskX, maskY, maskW, maskH, zoomScale, focusX, focusY, progress = 1 }) {
-  if (stageW <= 0 || stageH <= 0 || maskW <= 0 || maskH <= 0) return { scale: 1, x: 0, y: 0 };
-  const p = Math.min(1, Math.max(0, progress));
-  const cx = maskX + focusX * maskW;
-  const cy = maskY + focusY * maskH;
-  return {
-    scale: 1 + (zoomScale - 1) * p,
-    x: (stageW / 2 - cx * zoomScale) * p,
-    y: (stageH / 2 - cy * zoomScale) * p,
-  };
+function buildZoomRegions(telemetry, zoomScale, zoomInDur, zoomOutDur) {
+  const clicks = telemetry.filter(p => p.click);
+  if (!clicks.length) return [];
+  const holdDur = 1200;
+  return clicks.map((click, i) => {
+    const next = clicks[i+1];
+    const endMs = next && next.timeMs < click.timeMs+holdDur+zoomOutDur
+      ? next.timeMs - zoomInDur
+      : click.timeMs + holdDur;
+    return {
+      id: i,
+      startMs: click.timeMs,
+      endMs: Math.max(click.timeMs+100, endMs),
+      focus: { cx: click.cx, cy: click.cy },
+      scale: zoomScale,
+    };
+  });
 }
 
-// Determine active zoom region at given time (Recordly's sIa)
-function getActiveZoom(zoomRegions, timeMs, { zoomInDurationMs = 400, zoomOutDurationMs = 600 } = {}) {
-  if (!zoomRegions || zoomRegions.length === 0) return { region: null, strength: 0, scale: null };
-
-  for (const region of zoomRegions) {
-    const { startMs, endMs } = region;
-    if (timeMs >= startMs && timeMs <= endMs) {
-      return { region, strength: 1, scale: region.scale };
-    }
-    // Zoom in transition
-    if (timeMs >= startMs - zoomInDurationMs && timeMs < startMs) {
-      const progress = (timeMs - (startMs - zoomInDurationMs)) / zoomInDurationMs;
-      return { region, strength: progress, scale: region.scale };
-    }
-    // Zoom out transition
-    if (timeMs > endMs && timeMs <= endMs + zoomOutDurationMs) {
-      const progress = 1 - (timeMs - endMs) / zoomOutDurationMs;
-      return { region, strength: Math.max(0, progress), scale: region.scale };
-    }
+function getActiveZoom(regions, timeMs, zoomInDur, zoomOutDur) {
+  for (const r of regions) {
+    if (timeMs >= r.startMs && timeMs <= r.endMs)
+      return { region:r, strength:1 };
+    if (timeMs >= r.startMs-zoomInDur && timeMs < r.startMs)
+      return { region:r, strength:(timeMs-(r.startMs-zoomInDur))/zoomInDur };
+    if (timeMs > r.endMs && timeMs <= r.endMs+zoomOutDur)
+      return { region:r, strength:Math.max(0, 1-(timeMs-r.endMs)/zoomOutDur) };
   }
-  return { region: null, strength: 0, scale: null };
+  return { region:null, strength:0 };
 }
 
-// ═══════════════════════════════════════════════════════
+function getCursorAt(telemetry, timeMs) {
+  if (!telemetry.length) return null;
+  if (timeMs <= telemetry[0].timeMs) return telemetry[0];
+  if (timeMs >= telemetry[telemetry.length-1].timeMs) return telemetry[telemetry.length-1];
+  let lo=0, hi=telemetry.length-1;
+  while (lo < hi-1) { const mid=(lo+hi)>>1; telemetry[mid].timeMs<=timeMs?lo=mid:hi=mid; }
+  const a=telemetry[lo], b=telemetry[hi];
+  const t = b.timeMs>a.timeMs ? (timeMs-a.timeMs)/(b.timeMs-a.timeMs) : 0;
+  return { cx:a.cx+(b.cx-a.cx)*t, cy:a.cy+(b.cy-a.cy)*t };
+}
+
+// ═══════════════════════════════════════════
 // APP STATE
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════
 const S = {
-  source: null,
-  recorder: null,
-  chunks: [],
-  rawBlob: null,
-  finalBlob: null,
-  // Cursor telemetry — array of {timeMs, cx, cy, click}
-  cursorTelemetry: [],
-  startTime: null,
-  timerInt: null,
-  secs: 0,
-  recs: [],
-  screenW: window.screen.width,
-  screenH: window.screen.height,
-  cursorInterval: null,
-  lastMouseX: 0,
-  lastMouseY: 0,
+  source:null, recorder:null, chunks:[], rawBlob:null, finalBlob:null,
+  cursorTelemetry:[], startTime:null, timerInt:null, secs:0, recs:[],
+  screenW:window.screen.width, screenH:window.screen.height,
+  cursorInterval:null, lastX:0, lastY:0,
 };
 
-function showPage(id, el) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-' + id).classList.add('active');
-  if (el) el.classList.add('active');
+function showPage(id,el) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  if(el) el.classList.add('active');
 }
 
 async function loadSources() {
-  const g = document.getElementById('src-grid');
-  g.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text2)">Loading...</div>';
+  const g=document.getElementById('src-grid');
+  g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text2)">Loading...</div>';
   try {
-    const sources = await window.electronAPI.getSources();
-    g.innerHTML = '';
-    sources.forEach(src => {
-      const c = document.createElement('div');
-      c.className = 'src-card';
-      c.innerHTML = `<img class="src-thumb" src="${src.thumbnail}"><div class="src-name">${src.name}</div>`;
-      c.onclick = () => {
-        document.querySelectorAll('.src-card').forEach(x => x.classList.remove('sel'));
-        c.classList.add('sel'); S.source = src;
-      };
+    const sources=await window.electronAPI.getSources();
+    g.innerHTML='';
+    sources.forEach(src=>{
+      const c=document.createElement('div');
+      c.className='src-card';
+      c.innerHTML=`<img class="src-thumb" src="${src.thumbnail}"><div class="src-name">${src.name}</div>`;
+      c.onclick=()=>{document.querySelectorAll('.src-card').forEach(x=>x.classList.remove('sel'));c.classList.add('sel');S.source=src;};
       g.appendChild(c);
     });
-  } catch(e) { g.innerHTML = `<div style="color:var(--red);padding:20px">Error: ${e.message}</div>`; }
+  } catch(e){g.innerHTML=`<div style="color:var(--red);padding:20px">Error: ${e.message}</div>`;}
 }
 
-// ─── Recording ───────────────────────────────────────────
+// ═══════════════════════════════════════════
+// RECORDING
+// ═══════════════════════════════════════════
 async function startRec() {
-  if (!S.source) { alert('Please select a screen first!'); return; }
+  if(!S.source){alert('Please select a screen first!');return;}
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: S.source.id, maxFrameRate: parseInt(document.getElementById('fps').value) }}
+    const stream=await navigator.mediaDevices.getUserMedia({
+      audio:false,
+      video:{mandatory:{chromeMediaSource:'desktop',chromeMediaSourceId:S.source.id,maxFrameRate:parseInt(document.getElementById('fps').value)}}
     });
-    if (document.getElementById('t-mic').classList.contains('on')) {
-      try { const m = await navigator.mediaDevices.getUserMedia({ audio: true, video: false }); m.getAudioTracks().forEach(t => stream.addTrack(t)); } catch(e) {}
+    if(document.getElementById('t-mic').classList.contains('on')) {
+      try{const m=await navigator.mediaDevices.getUserMedia({audio:true,video:false});m.getAudioTracks().forEach(t=>stream.addTrack(t));}catch(e){}
     }
-    S.chunks = []; S.cursorTelemetry = []; S.startTime = Date.now();
-    S.recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 5 * 1024 * 1024 });
-    S.recorder.ondataavailable = e => { if (e.data.size > 0) S.chunks.push(e.data); };
-    S.recorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); S.rawBlob = new Blob(S.chunks, { type: 'video/webm' }); processZoom(); };
+    S.chunks=[]; S.cursorTelemetry=[]; S.startTime=Date.now();
+    S.recorder=new MediaRecorder(stream,{mimeType:'video/webm;codecs=vp9',videoBitsPerSecond:5*1024*1024});
+    S.recorder.ondataavailable=e=>{if(e.data.size>0)S.chunks.push(e.data);};
+    S.recorder.onstop=()=>{stream.getTracks().forEach(t=>t.stop());S.rawBlob=new Blob(S.chunks,{type:'video/webm'});processZoom();};
     S.recorder.start(200);
 
-    // Track cursor position every 16ms (60fps telemetry — like Recordly)
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mousedown', onMouseClick);
-    S.cursorInterval = setInterval(recordCursorPos, 50); // 20fps telemetry
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mousedown', onClick);
+    S.cursorInterval=setInterval(recordCursor, 50);
 
-    document.getElementById('btn-start').style.display = 'none';
-    document.getElementById('btn-stop').style.display = '';
+    document.getElementById('btn-start').style.display='none';
+    document.getElementById('btn-stop').style.display='';
     document.getElementById('rbadge').classList.add('v');
-    document.getElementById('cbadge').style.display = '';
+    document.getElementById('cbadge').style.display='';
     document.getElementById('sdot').classList.add('rec');
-    document.getElementById('stext').textContent = 'Recording — cursor being tracked for zoom';
-    S.secs = 0; tick(); S.timerInt = setInterval(tick, 1000);
-  } catch(e) { alert('Could not start: ' + e.message); }
+    document.getElementById('stext').textContent='Recording — click anywhere to add zoom points';
+    S.secs=0; tick(); S.timerInt=setInterval(tick,1000);
+  } catch(e){alert('Could not start: '+e.message);}
 }
 
-function onMouseMove(e) {
-  S.lastMouseX = e.screenX; S.lastMouseY = e.screenY;
+function onMove(e){S.lastX=e.screenX;S.lastY=e.screenY;}
+function onClick(e){
+  if(!S.startTime) return;
+  S.cursorTelemetry.push({timeMs:Date.now()-S.startTime,cx:Math.min(Math.max(e.screenX/S.screenW,0),1),cy:Math.min(Math.max(e.screenY/S.screenH,0),1),click:true});
+  const n=S.cursorTelemetry.filter(p=>p.click).length;
+  document.getElementById('cbadge').textContent=`🖱️ ${n} click${n!==1?'s':''}`;
 }
-
-function onMouseClick(e) {
-  if (!S.startTime) return;
-  const timeMs = Date.now() - S.startTime;
-  const cx = Math.min(Math.max(e.screenX / S.screenW, 0), 1);
-  const cy = Math.min(Math.max(e.screenY / S.screenH, 0), 1);
-  S.cursorTelemetry.push({ timeMs, cx, cy, click: true });
-  updateBadge();
+function recordCursor(){
+  if(!S.startTime) return;
+  S.cursorTelemetry.push({timeMs:Date.now()-S.startTime,cx:Math.min(Math.max(S.lastX/S.screenW,0),1),cy:Math.min(Math.max(S.lastY/S.screenH,0),1),click:false});
 }
-
-function recordCursorPos() {
-  if (!S.startTime) return;
-  const timeMs = Date.now() - S.startTime;
-  const cx = Math.min(Math.max(S.lastMouseX / S.screenW, 0), 1);
-  const cy = Math.min(Math.max(S.lastMouseY / S.screenH, 0), 1);
-  S.cursorTelemetry.push({ timeMs, cx, cy, click: false });
+function tick(){
+  const m=String(Math.floor(S.secs/60)).padStart(2,'0');
+  const s=String(S.secs%60).padStart(2,'0');
+  document.getElementById('timer').textContent=m+':'+s; S.secs++;
 }
-
-function updateBadge() {
-  const clicks = S.cursorTelemetry.filter(p => p.click).length;
-  document.getElementById('cbadge').textContent = `🖱️ ${clicks} click${clicks !== 1 ? 's' : ''} tracked`;
-}
-
-function tick() {
-  const m = String(Math.floor(S.secs / 60)).padStart(2, '0');
-  const s = String(S.secs % 60).padStart(2, '0');
-  document.getElementById('timer').textContent = m + ':' + s;
-  S.secs++;
-}
-
-function stopRec() {
-  clearInterval(S.timerInt);
-  clearInterval(S.cursorInterval);
-  document.removeEventListener('mousemove', onMouseMove);
-  document.removeEventListener('mousedown', onMouseClick);
-  if (S.recorder) S.recorder.stop();
-  document.getElementById('btn-start').style.display = '';
-  document.getElementById('btn-stop').style.display = 'none';
+function stopRec(){
+  clearInterval(S.timerInt); clearInterval(S.cursorInterval);
+  document.removeEventListener('mousemove',onMove);
+  document.removeEventListener('mousedown',onClick);
+  if(S.recorder) S.recorder.stop();
+  document.getElementById('btn-start').style.display='';
+  document.getElementById('btn-stop').style.display='none';
   document.getElementById('rbadge').classList.remove('v');
   document.getElementById('sdot').classList.remove('rec');
-  document.getElementById('stext').textContent = 'Processing zoom effects...';
+  document.getElementById('stext').textContent='Processing zoom effects...';
 }
 
-// ═══════════════════════════════════════════════════════
-// BUILD ZOOM REGIONS FROM CURSOR TELEMETRY
-// (Recordly generates zoom regions automatically from clicks)
-// ═══════════════════════════════════════════════════════
-function buildZoomRegions(telemetry, zoomScale, zoomInDur, zoomOutDur) {
-  const clicks = telemetry.filter(p => p.click);
-  if (clicks.length === 0) return [];
-
-  const regions = [];
-  const holdDur = 1200; // hold zoom for 1.2s after click
-
-  for (let i = 0; i < clicks.length; i++) {
-    const click = clicks[i];
-    const startMs = click.timeMs;
-    const endMs = startMs + holdDur;
-
-    // Check if next click is close enough to merge/connect
-    const next = clicks[i + 1];
-    const actualEnd = next && next.timeMs < endMs + zoomOutDur ? next.timeMs - zoomInDur : endMs;
-
-    regions.push({
-      id: i,
-      startMs,
-      endMs: Math.max(startMs + 100, actualEnd),
-      focus: { cx: click.cx, cy: click.cy },
-      scale: zoomScale,
-    });
-  }
-  return regions;
-}
-
-// Get cursor position at given time (interpolated — like Recordly's getCursorAt)
-function getCursorAt(telemetry, timeMs) {
-  if (!telemetry || telemetry.length === 0) return null;
-  if (timeMs <= telemetry[0].timeMs) return telemetry[0];
-  if (timeMs >= telemetry[telemetry.length - 1].timeMs) return telemetry[telemetry.length - 1];
-  let lo = 0, hi = telemetry.length - 1;
-  while (lo < hi - 1) {
-    const mid = (lo + hi) >> 1;
-    telemetry[mid].timeMs <= timeMs ? lo = mid : hi = mid;
-  }
-  const a = telemetry[lo], b = telemetry[hi];
-  const range = b.timeMs - a.timeMs;
-  const t = range > 0 ? (timeMs - a.timeMs) / range : 0;
-  return { cx: a.cx + (b.cx - a.cx) * t, cy: a.cy + (b.cy - a.cy) * t, timeMs };
-}
-
-// ═══════════════════════════════════════════════════════
-// ZOOM PROCESSING — Canvas + Spring Physics
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════
+// ZOOM PROCESSING — FIXED VERSION
+// ═══════════════════════════════════════════
 async function processZoom() {
-  const doZoom = document.getElementById('t-zoom').classList.contains('on');
-  const clicks = S.cursorTelemetry.filter(p => p.click);
+  const doZoom=document.getElementById('t-zoom').classList.contains('on');
+  const clicks=S.cursorTelemetry.filter(p=>p.click);
 
-  if (!doZoom || clicks.length === 0) {
-    S.finalBlob = S.rawBlob;
-    showPreview(S.rawBlob);
-    document.getElementById('stext').textContent = clicks.length === 0
-      ? 'Done! Tip: click on screen during recording to add zoom points.'
-      : 'Done!';
+  if(!doZoom||clicks.length===0){
+    S.finalBlob=S.rawBlob; showPreview(S.rawBlob);
+    document.getElementById('stext').textContent=clicks.length===0?'Done! Tip: click on screen while recording to add zoom points.':'Done!';
     return;
   }
 
-  setProc(true, 'Loading video...', 0);
+  setProc(true,'Loading video...',0);
 
-  const zoomScale = parseFloat(document.getElementById('zoom-lvl').value);
-  const smoothness = parseFloat(document.getElementById('smoothness').value);
-  const zoomInDur = parseInt(document.getElementById('zoom-in-dur').value);
-  const zoomOutDur = parseInt(document.getElementById('zoom-out-dur').value);
-  const FPS = 30;
+  // FIX 1: Properly load video with all metadata
+  const video=document.createElement('video');
+  video.preload='auto';
+  const videoURL=URL.createObjectURL(S.rawBlob);
+  video.src=videoURL;
+  video.muted=true;
 
-  // Build zoom regions from clicks
-  const zoomRegions = buildZoomRegions(S.cursorTelemetry, zoomScale, zoomInDur, zoomOutDur);
+  // Wait for full metadata including duration
+  await new Promise((resolve,reject)=>{
+    video.oncanplaythrough=resolve;
+    video.onerror=reject;
+    video.load();
+    setTimeout(resolve, 5000); // fallback timeout
+  });
 
-  const video = document.createElement('video');
-  video.src = URL.createObjectURL(S.rawBlob);
-  video.muted = true;
-  await new Promise(r => { video.onloadedmetadata = r; });
-  await new Promise(r => { video.onseeked = r; video.currentTime = 0; });
+  const VW=video.videoWidth||1280;
+  const VH=video.videoHeight||720;
+  // FIX 2: Use S.secs as fallback if duration is invalid
+  const totalDur=Number.isFinite(video.duration)&&video.duration>0 ? video.duration : S.secs;
+  const FPS=30;
+  const totalFrames=Math.floor(totalDur*FPS);
 
-  const VW = video.videoWidth, VH = video.videoHeight;
-  const totalDur = video.duration;
-  const totalFrames = Math.floor(totalDur * FPS);
+  if(totalFrames<=0){
+    S.finalBlob=S.rawBlob; showPreview(S.rawBlob);
+    setProc(false);
+    document.getElementById('stext').textContent='Done!';
+    return;
+  }
 
-  const canvas = document.getElementById('proc-canvas');
-  canvas.width = VW; canvas.height = VH;
-  const ctx = canvas.getContext('2d');
+  const canvas=document.getElementById('proc-canvas');
+  canvas.width=VW; canvas.height=VH;
+  const ctx=canvas.getContext('2d');
 
-  // Spring cameras — exactly like Recordly
-  const springScale = makeSpring(1);
-  const springX = makeSpring(0);
-  const springY = makeSpring(0);
-  const springConfig = buildSpringConfig(smoothness);
+  const zoomScale=parseFloat(document.getElementById('zoom-lvl').value);
+  const smoothness=parseFloat(document.getElementById('smoothness').value);
+  const zoomInDur=parseInt(document.getElementById('zoom-in-dur').value);
+  const zoomOutDur=parseInt(document.getElementById('zoom-out-dur').value);
+
+  const zoomRegions=buildZoomRegions(S.cursorTelemetry,zoomScale,zoomInDur,zoomOutDur);
+  const springCfg=buildSpringConfig(smoothness);
+  const springScale=makeSpring(1);
+  const springX=makeSpring(VW/2);
+  const springY=makeSpring(VH/2);
 
   // Output recorder
-  const outStream = canvas.captureStream(FPS);
-  const outChunks = [];
-  const outRec = new MediaRecorder(outStream, { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 6 * 1024 * 1024 });
-  outRec.ondataavailable = e => { if (e.data.size > 0) outChunks.push(e.data); };
-  outRec.onstop = () => {
-    setProc(true, 'Finalizing...', 97);
-    setTimeout(() => {
-      S.finalBlob = new Blob(outChunks, { type: 'video/webm' });
-      setProc(false);
-      showPreview(S.finalBlob);
-      document.getElementById('stext').textContent = `✨ Spring zoom applied at ${clicks.length} point${clicks.length !== 1 ? 's' : ''}!`;
-    }, 300);
+  const outStream=canvas.captureStream(FPS);
+  const outChunks=[];
+  const outRec=new MediaRecorder(outStream,{mimeType:'video/webm;codecs=vp9',videoBitsPerSecond:6*1024*1024});
+  outRec.ondataavailable=e=>{if(e.data.size>0)outChunks.push(e.data);};
+  outRec.onstop=()=>{
+    URL.revokeObjectURL(videoURL);
+    setProc(true,'Finalizing...',97);
+    setTimeout(()=>{
+      S.finalBlob=new Blob(outChunks,{type:'video/webm'});
+      setProc(false); showPreview(S.finalBlob);
+      document.getElementById('stext').textContent=`✨ Zoom applied at ${clicks.length} point${clicks.length!==1?'s':''}!`;
+    },300);
   };
 
   outRec.start(200);
 
-  let frame = 0;
-  let lastFrameTimeMs = 0;
+  let frame=0;
+  const frameMs=1000/FPS;
 
-  function renderNext() {
-    if (frame >= totalFrames) { outRec.stop(); return; }
+  // FIX 3: Use requestAnimationFrame approach instead of onseeked reassignment
+  function renderFrame() {
+    if(frame>=totalFrames){outRec.stop();return;}
 
-    video.currentTime = frame / FPS;
-    video.onseeked = () => {
-      const timeMs = frame * (1000 / FPS);
-      const dtMs = frame === 0 ? 1000 / FPS : timeMs - lastFrameTimeMs;
-      lastFrameTimeMs = timeMs;
+    const timeMs=frame*frameMs;
+    video.currentTime=timeMs/1000;
 
-      // Get active zoom at this time
-      const { region, strength, scale } = getActiveZoom(zoomRegions, timeMs, { zoomInDurationMs: zoomInDur, zoomOutDurationMs: zoomOutDur });
+    // Wait for seek to complete properly
+    const doRender=()=>{
+      const {region,strength}=getActiveZoom(zoomRegions,timeMs,zoomInDur,zoomOutDur);
 
-      // Target zoom state
-      let targetScale = 1, targetFocusX = 0.5, targetFocusY = 0.5;
-      if (region && strength > 0) {
-        targetScale = 1 + (region.scale - 1) * strength;
-
-        // Cursor-following zoom — use cursor telemetry to follow cursor inside zoom region
-        const cursor = getCursorAt(S.cursorTelemetry, timeMs);
-        if (cursor) {
-          // Blend between click focus and cursor position
-          const blendT = Math.min(1, strength * 2);
-          targetFocusX = region.focus.cx * (1 - blendT * 0.3) + cursor.cx * (blendT * 0.3);
-          targetFocusY = region.focus.cy * (1 - blendT * 0.3) + cursor.cy * (blendT * 0.3);
+      let targetScale=1, targetCx=0.5, targetCy=0.5;
+      if(region&&strength>0){
+        targetScale=1+(region.scale-1)*strength;
+        const cursor=getCursorAt(S.cursorTelemetry,timeMs);
+        if(cursor){
+          targetCx=region.focus.cx*(1-strength*0.3)+cursor.cx*(strength*0.3);
+          targetCy=region.focus.cy*(1-strength*0.3)+cursor.cy*(strength*0.3);
         } else {
-          targetFocusX = region.focus.cx;
-          targetFocusY = region.focus.cy;
+          targetCx=region.focus.cx; targetCy=region.focus.cy;
         }
       }
 
-      // Calculate target camera transform
-      const target = calcCameraTransform({
-        stageW: VW, stageH: VH,
-        maskX: 0, maskY: 0, maskW: VW, maskH: VH,
-        zoomScale: targetScale,
-        focusX: targetFocusX,
-        focusY: targetFocusY,
-        progress: 1,
-      });
+      // Target position in canvas coords
+      const targetX=VW/2-(targetCx*VW)*targetScale+VW*(targetScale-1)/2;
+      const targetY=VH/2-(targetCy*VH)*targetScale+VH*(targetScale-1)/2;
 
-      // Apply spring physics (exactly like Recordly)
-      const appliedScale = stepSpring(springScale, target.scale, dtMs, springConfig);
-      const appliedX = stepSpring(springX, target.x, dtMs, springConfig);
-      const appliedY = stepSpring(springY, target.y, dtMs, springConfig);
+      // Apply spring physics
+      const dt=frameMs;
+      const appliedScale=stepSpring(springScale,targetScale,dt,springCfg);
+      const appliedX=stepSpring(springX,targetCx*VW,dt,springCfg);
+      const appliedY=stepSpring(springY,targetCy*VH,dt,springCfg);
 
-      // Draw frame with spring-animated zoom
-      ctx.clearRect(0, 0, VW, VH);
-      ctx.save();
-
-      if (Math.abs(appliedScale - 1) < 0.001 && Math.abs(appliedX) < 0.5 && Math.abs(appliedY) < 0.5) {
-        // No zoom — draw directly
-        ctx.drawImage(video, 0, 0, VW, VH);
+      // Draw zoomed frame
+      ctx.clearRect(0,0,VW,VH);
+      if(Math.abs(appliedScale-1)<0.005){
+        ctx.drawImage(video,0,0,VW,VH);
       } else {
-        // Apply spring camera transform
-        const cropW = VW / appliedScale;
-        const cropH = VH / appliedScale;
-        // Convert x,y offset to source crop position
-        const srcX = Math.min(Math.max((VW / 2 - appliedX) / appliedScale - cropW / 2, 0), VW - cropW);
-        const srcY = Math.min(Math.max((VH / 2 - appliedY) / appliedScale - cropH / 2, 0), VH - cropH);
-        ctx.drawImage(video, srcX, srcY, cropW, cropH, 0, 0, VW, VH);
+        const cropW=VW/appliedScale;
+        const cropH=VH/appliedScale;
+        const srcX=Math.min(Math.max(appliedX-cropW/2,0),VW-cropW);
+        const srcY=Math.min(Math.max(appliedY-cropH/2,0),VH-cropH);
+        ctx.drawImage(video,srcX,srcY,cropW,cropH,0,0,VW,VH);
 
-        // Draw cursor ripple effect at click position
-        if (region && strength > 0.1) {
-          const cursor = getCursorAt(S.cursorTelemetry, timeMs);
-          if (cursor) {
-            const screenX = (cursor.cx * VW - srcX) * appliedScale;
-            const screenY = (cursor.cy * VH - srcY) * appliedScale;
-            if (screenX >= 0 && screenX <= VW && screenY >= 0 && screenY <= VH) {
-              drawCursorRipple(ctx, screenX, screenY, timeMs, region.startMs);
-            }
+        // Cursor ripple
+        if(region&&strength>0.05){
+          const cursor=getCursorAt(S.cursorTelemetry,timeMs);
+          if(cursor){
+            const dx=(cursor.cx*VW-srcX)*appliedScale;
+            const dy=(cursor.cy*VH-srcY)*appliedScale;
+            if(dx>=0&&dx<=VW&&dy>=0&&dy<=VH) drawRipple(ctx,dx,dy,timeMs,region.startMs);
           }
         }
       }
-      ctx.restore();
 
       frame++;
-      const pct = Math.floor((frame / totalFrames) * 92) + 5;
-      if (frame % 10 === 0) setProc(true, `Rendering frame ${frame} / ${totalFrames}`, pct);
-      setTimeout(renderNext, 0);
+      if(frame%15===0) setProc(true,`Rendering ${frame}/${totalFrames}`,Math.floor((frame/totalFrames)*92)+5);
+      setTimeout(renderFrame,0);
     };
+
+    // FIX 3: One-time onseeked handler
+    if(Math.abs(video.currentTime-timeMs/1000)<0.05){
+      doRender();
+    } else {
+      video.onseeked=doRender;
+    }
   }
 
-  setProc(true, `Processing ${clicks.length} zoom point${clicks.length !== 1 ? 's' : ''}...`, 5);
-  renderNext();
+  setProc(true,`Processing ${clicks.length} zoom point${clicks.length!==1?'s':''}...`,5);
+  renderFrame();
 }
 
-function drawCursorRipple(ctx, x, y, timeMs, eventStartMs) {
-  const age = timeMs - eventStartMs;
-  if (age < 0 || age > 600) return;
-  const progress = age / 600;
-  const alpha = (1 - progress) * 0.8;
-  const size = 10 + progress * 50;
+function drawRipple(ctx,x,y,timeMs,startMs){
+  const age=timeMs-startMs; if(age<0||age>700) return;
+  const p=age/700, alpha=(1-p)*0.85, size=8+p*55;
   ctx.save();
-  ctx.strokeStyle = `rgba(124,92,252,${alpha})`;
-  ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = `rgba(124,92,252,${alpha * 0.5})`;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(x, y, size * 0.55, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle=`rgba(124,92,252,${alpha})`; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.arc(x,y,size,0,Math.PI*2); ctx.stroke();
+  ctx.strokeStyle=`rgba(124,92,252,${alpha*0.4})`; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(x,y,size*0.5,0,Math.PI*2); ctx.stroke();
   ctx.restore();
 }
 
-function setProc(show, text, pct) {
-  document.getElementById('proc').classList.toggle('v', show);
-  if (text) document.getElementById('proc-sub').textContent = text;
-  if (pct !== undefined) document.getElementById('proc-bar').style.width = pct + '%';
+function setProc(show,text,pct){
+  document.getElementById('proc').classList.toggle('v',show);
+  if(text) document.getElementById('proc-sub').textContent=text;
+  if(pct!==undefined) document.getElementById('proc-bar').style.width=pct+'%';
 }
-
-function showPreview(blob) {
-  document.getElementById('prev-video').src = URL.createObjectURL(blob);
+function showPreview(blob){
+  document.getElementById('prev-video').src=URL.createObjectURL(blob);
   document.getElementById('prev-sec').classList.add('v');
 }
-
-async function saveVideo() {
-  const blob = S.finalBlob || S.rawBlob; if (!blob) return;
-  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-  const fp = await window.electronAPI.getSavePath('FocusRec_' + ts + '.webm');
-  if (!fp) return;
-  const buf = await blob.arrayBuffer();
-  const res = await window.electronAPI.saveVideo({ buffer: Array.from(new Uint8Array(buf)), filePath: fp });
-  if (res.success) {
-    S.recs.unshift({ name: 'FocusRec_' + ts, path: fp, date: new Date().toLocaleString(), dur: document.getElementById('timer').textContent });
-    updateRecs(); alert('✅ Video saved!\n' + fp); discardVideo();
-  } else alert('Error: ' + res.error);
+async function saveVideo(){
+  const blob=S.finalBlob||S.rawBlob; if(!blob) return;
+  const ts=new Date().toISOString().replace(/[:.]/g,'-').slice(0,-5);
+  const fp=await window.electronAPI.getSavePath('FocusRec_'+ts+'.webm');
+  if(!fp) return;
+  const buf=await blob.arrayBuffer();
+  const res=await window.electronAPI.saveVideo({buffer:Array.from(new Uint8Array(buf)),filePath:fp});
+  if(res.success){
+    S.recs.unshift({name:'FocusRec_'+ts,path:fp,date:new Date().toLocaleString(),dur:document.getElementById('timer').textContent});
+    updateRecs(); alert('✅ Video saved!\n'+fp); discardVideo();
+  } else alert('Error: '+res.error);
 }
-
-function discardVideo() {
-  S.rawBlob = null; S.finalBlob = null;
-  const v = document.getElementById('prev-video');
-  URL.revokeObjectURL(v.src); v.src = '';
+function discardVideo(){
+  S.rawBlob=null; S.finalBlob=null;
+  const v=document.getElementById('prev-video'); URL.revokeObjectURL(v.src); v.src='';
   document.getElementById('prev-sec').classList.remove('v');
-  document.getElementById('timer').textContent = '00:00';
-  document.getElementById('cbadge').style.display = 'none';
-  document.getElementById('stext').textContent = 'Ready';
+  document.getElementById('timer').textContent='00:00';
+  document.getElementById('cbadge').style.display='none';
+  document.getElementById('stext').textContent='Ready';
 }
-
-function updateRecs() {
-  const l = document.getElementById('recs-list');
-  if (!S.recs.length) return;
-  l.innerHTML = S.recs.map(r => `
+function updateRecs(){
+  const l=document.getElementById('recs-list'); if(!S.recs.length) return;
+  l.innerHTML=S.recs.map(r=>`
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;display:flex;align-items:center;gap:12px;margin-bottom:10px">
       <div style="font-size:24px">🎥</div>
       <div style="flex:1"><div style="font-weight:600;font-size:14px;margin-bottom:3px">${r.name}</div>
