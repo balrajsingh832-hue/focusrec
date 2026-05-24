@@ -2,568 +2,750 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>FocusRec</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  :root {
-    --bg: #0f0f13;
-    --surface: #1a1a24;
-    --surface2: #22222f;
-    --border: #2e2e42;
-    --accent: #7c5cfc;
-    --accent2: #5c9cfc;
-    --red: #fc5c5c;
-    --green: #5cfca0;
-    --text: #e8e8f0;
-    --text2: #9090aa;
-    --radius: 12px;
-  }
-  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; user-select: none; }
-  .titlebar { height: 40px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; -webkit-app-region: drag; gap: 12px; }
-  .titlebar-logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
-  .titlebar-logo .dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 8px var(--accent); }
-  .titlebar-spacer { flex: 1; }
-  .titlebar-controls { display: flex; gap: 6px; -webkit-app-region: no-drag; }
-  .win-btn { width: 28px; height: 28px; border-radius: 6px; border: none; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; background: var(--surface2); color: var(--text2); }
-  .win-btn:hover { background: var(--border); color: var(--text); }
-  .win-btn.close:hover { background: var(--red); color: #fff; }
-  .app-body { display: flex; height: calc(100vh - 40px); }
-  .sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 16px 10px; gap: 4px; flex-shrink: 0; }
-  .nav-section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); padding: 8px 10px 4px; font-weight: 600; }
-  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; cursor: pointer; transition: all 0.15s; font-size: 13px; color: var(--text2); }
-  .nav-item:hover { background: var(--surface2); color: var(--text); }
-  .nav-item.active { background: rgba(124,92,252,0.15); color: var(--accent); }
-  .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
-  .sidebar-bottom { margin-top: auto; }
-  .main-content { flex: 1; overflow-y: auto; padding: 28px; padding-bottom: 50px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
-  .page { display: none; }
-  .page.active { display: block; }
-  .page-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
-  .page-subtitle { color: var(--text2); font-size: 13px; margin-bottom: 24px; }
-  .sources-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px; }
-  .source-card { background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius); overflow: hidden; cursor: pointer; transition: all 0.2s; }
-  .source-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-  .source-card.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,92,252,0.2); }
-  .source-thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: var(--surface2); display: block; }
-  .source-name { padding: 8px 10px; font-size: 12px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .source-card.selected .source-name { color: var(--accent); }
-  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
-  .setting-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
-  .setting-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text2); font-weight: 600; margin-bottom: 10px; }
-  .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-  .toggle-row:last-child { margin-bottom: 0; }
-  .toggle-name { font-size: 13px; }
-  .toggle { width: 36px; height: 20px; background: var(--border); border-radius: 10px; position: relative; cursor: pointer; transition: background 0.2s; border: none; flex-shrink: 0; }
-  .toggle.on { background: var(--accent); }
-  .toggle::after { content: ''; position: absolute; width: 14px; height: 14px; background: #fff; border-radius: 50%; top: 3px; left: 3px; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
-  .toggle.on::after { transform: translateX(16px); }
-  select, input[type=range] { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 6px 10px; font-size: 13px; outline: none; cursor: pointer; }
-  input[type=range] { padding: 4px 0; accent-color: var(--accent); }
-  .range-val { text-align: right; font-size: 12px; color: var(--accent); margin-top: 4px; }
-  .record-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .btn { padding: 10px 22px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }
-  .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 4px 16px rgba(124,92,252,0.3); }
-  .btn-primary:hover { background: #8d6dfd; transform: translateY(-1px); }
-  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-  .btn-danger { background: var(--red); color: #fff; box-shadow: 0 4px 16px rgba(252,92,92,0.3); }
-  .btn-danger:hover { background: #fd7070; }
-  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
-  .btn-secondary:hover { background: var(--border); }
-  .btn-success { background: #1a8c5c; color: #fff; }
-  .btn-success:hover { background: #1fa86e; }
-  .rec-badge { display: none; align-items: center; gap: 8px; background: rgba(252,92,92,0.1); border: 1px solid rgba(252,92,92,0.3); border-radius: 20px; padding: 6px 14px; font-size: 13px; font-weight: 600; color: var(--red); }
-  .rec-badge.visible { display: flex; }
-  .rec-dot { width: 8px; height: 8px; background: var(--red); border-radius: 50%; animation: blink 1s infinite; }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
-  .timer { font-family: 'Courier New', monospace; font-size: 13px; color: var(--text2); min-width: 60px; }
-  .preview-section { margin-top: 24px; display: none; }
-  .preview-section.visible { display: block; }
-  .preview-section h3 { font-size: 15px; margin-bottom: 12px; }
-  .preview-wrap { background: #000; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); max-height: 300px; display: flex; align-items: center; justify-content: center; }
-  #preview-video { width: 100%; max-height: 300px; display: block; }
-  .preview-actions { display: flex; gap: 10px; margin-top: 12px; }
-  .refresh-btn { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text2); cursor: pointer; font-size: 12px; margin-bottom: 12px; transition: all 0.15s; }
-  .refresh-btn:hover { color: var(--text); border-color: var(--accent); }
-  .status-bar { height: 28px; background: var(--surface); border-top: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 16px; font-size: 11px; color: var(--text2); position: fixed; bottom: 0; left: 0; right: 0; }
-  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
-  .status-dot.recording { background: var(--red); animation: blink 1s infinite; }
-  .divider { height: 1px; background: var(--border); margin: 20px 0; }
-  .processing-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
-  .processing-overlay.visible { display: flex; }
-  .processing-spinner { width: 48px; height: 48px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .processing-text { font-size: 16px; font-weight: 600; color: var(--text); }
-  .processing-sub { font-size: 13px; color: var(--text2); }
-  .click-counter { font-size: 12px; color: var(--accent); padding: 4px 10px; background: rgba(124,92,252,0.1); border-radius: 20px; border: 1px solid rgba(124,92,252,0.3); }
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#0f0f13; --surface:#1a1a24; --surface2:#22222f;
+  --border:#2e2e42; --accent:#7c5cfc; --red:#fc5c5c;
+  --green:#5cfca0; --text:#e8e8f0; --text2:#9090aa; --r:12px;
+}
+body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); height:100vh; overflow:hidden; user-select:none; }
+.tb { height:40px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 16px; -webkit-app-region:drag; gap:12px; }
+.tb-logo { display:flex; align-items:center; gap:8px; font-weight:700; font-size:14px; }
+.tb-dot { width:8px; height:8px; background:var(--accent); border-radius:50%; box-shadow:0 0 8px var(--accent); }
+.tb-controls { margin-left:auto; display:flex; gap:6px; -webkit-app-region:no-drag; }
+.wb { width:28px; height:28px; border-radius:6px; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; background:var(--surface2); color:var(--text2); font-size:12px; transition:all .15s; }
+.wb:hover { background:var(--border); color:var(--text); }
+.wb.cl:hover { background:var(--red); color:#fff; }
+.body { display:flex; height:calc(100vh - 40px); }
+.sidebar { width:210px; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; padding:16px 10px; gap:4px; flex-shrink:0; }
+.nl { font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--text2); padding:8px 10px 4px; font-weight:600; }
+.ni { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; cursor:pointer; transition:all .15s; font-size:13px; color:var(--text2); }
+.ni:hover { background:var(--surface2); color:var(--text); }
+.ni.active { background:rgba(124,92,252,.15); color:var(--accent); }
+.ni svg { width:16px; height:16px; flex-shrink:0; }
+.sb-bot { margin-top:auto; }
+.content { flex:1; overflow-y:auto; padding:24px 28px 50px; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+.page { display:none; }
+.page.active { display:block; }
+.pt { font-size:20px; font-weight:700; margin-bottom:4px; }
+.ps { color:var(--text2); font-size:13px; margin-bottom:20px; }
+.src-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:10px; margin-bottom:20px; }
+.src-card { background:var(--surface); border:2px solid var(--border); border-radius:var(--r); overflow:hidden; cursor:pointer; transition:all .2s; }
+.src-card:hover { border-color:var(--accent); transform:translateY(-2px); }
+.src-card.sel { border-color:var(--accent); box-shadow:0 0 0 3px rgba(124,92,252,.2); }
+.src-thumb { width:100%; aspect-ratio:16/9; object-fit:cover; background:var(--surface2); display:block; }
+.src-name { padding:7px 10px; font-size:11px; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.src-card.sel .src-name { color:var(--accent); }
+.sg { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
+.sc { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); padding:14px; }
+.sl { font-size:10px; text-transform:uppercase; letter-spacing:.8px; color:var(--text2); font-weight:600; margin-bottom:10px; }
+.tr { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.tr:last-child { margin-bottom:0; }
+.tn { font-size:13px; }
+.tgl { width:36px; height:20px; background:var(--border); border-radius:10px; position:relative; cursor:pointer; transition:background .2s; border:none; flex-shrink:0; }
+.tgl.on { background:var(--accent); }
+.tgl::after { content:''; position:absolute; width:14px; height:14px; background:#fff; border-radius:50%; top:3px; left:3px; transition:transform .2s; }
+.tgl.on::after { transform:translateX(16px); }
+select { width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 10px; font-size:13px; outline:none; cursor:pointer; }
+input[type=range] { width:100%; padding:4px 0; cursor:pointer; accent-color:var(--accent); }
+.rv { text-align:right; font-size:12px; color:var(--accent); margin-top:3px; }
+.btn { padding:10px 22px; border-radius:8px; border:none; font-size:14px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:8px; transition:all .2s; }
+.btn-p { background:var(--accent); color:#fff; box-shadow:0 4px 16px rgba(124,92,252,.3); }
+.btn-p:hover { background:#8d6dfd; transform:translateY(-1px); }
+.btn-d { background:var(--red); color:#fff; }
+.btn-d:hover { background:#fd7070; }
+.btn-s { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+.btn-s:hover { background:var(--border); }
+.btn-g { background:#1a8c5c; color:#fff; }
+.btn-g:hover { background:#1fa86e; }
+.rc { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:4px; }
+.rbadge { display:none; align-items:center; gap:8px; background:rgba(252,92,92,.1); border:1px solid rgba(252,92,92,.3); border-radius:20px; padding:6px 14px; font-size:13px; font-weight:600; color:var(--red); }
+.rbadge.v { display:flex; }
+.rdot { width:8px; height:8px; background:var(--red); border-radius:50%; animation:blink 1s infinite; }
+@keyframes blink { 0%,100%{opacity:1}50%{opacity:.3} }
+.timer { font-family:'Courier New',monospace; font-size:13px; color:var(--text2); min-width:60px; }
+.cbadge { font-size:12px; color:var(--accent); padding:4px 10px; background:rgba(124,92,252,.1); border-radius:20px; border:1px solid rgba(124,92,252,.3); display:none; }
+.proc { display:none; position:fixed; inset:0; background:rgba(0,0,0,.9); z-index:999; flex-direction:column; align-items:center; justify-content:center; gap:16px; }
+.proc.v { display:flex; }
+.spin { width:52px; height:52px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+.proc-title { font-size:18px; font-weight:700; }
+.proc-sub { font-size:13px; color:var(--text2); }
+.proc-bar-wrap { width:320px; height:6px; background:var(--border); border-radius:3px; overflow:hidden; }
+.proc-bar { height:100%; background:linear-gradient(90deg,var(--accent),#5c9cfc); width:0%; transition:width .2s; border-radius:3px; }
+.prev-sec { display:none; margin-top:20px; }
+.prev-sec.v { display:block; }
+.prev-wrap { background:#000; border-radius:var(--r); overflow:hidden; border:1px solid var(--border); }
+video { width:100%; max-height:280px; display:block; }
+.prev-actions { display:flex; gap:10px; margin-top:12px; }
+.sbar { height:28px; background:var(--surface); border-top:1px solid var(--border); display:flex; align-items:center; padding:0 16px; gap:12px; font-size:11px; color:var(--text2); position:fixed; bottom:0; left:0; right:0; }
+.sdot { width:6px; height:6px; border-radius:50%; background:var(--green); }
+.sdot.rec { background:var(--red); animation:blink 1s infinite; }
+.divider { height:1px; background:var(--border); margin:18px 0; }
+.rbtn { display:flex; align-items:center; gap:6px; padding:6px 12px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text2); cursor:pointer; font-size:12px; margin-bottom:12px; transition:all .15s; }
+.rbtn:hover { color:var(--text); border-color:var(--accent); }
+.info-box { background:rgba(124,92,252,.08); border:1px solid rgba(124,92,252,.2); border-radius:8px; padding:12px 14px; font-size:12px; color:var(--text2); margin-bottom:16px; line-height:1.7; }
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
 </style>
 </head>
 <body>
 
-<!-- Processing Overlay -->
-<div class="processing-overlay" id="processing-overlay">
-  <div class="processing-spinner"></div>
-  <div class="processing-text">Adding Zoom Effects...</div>
-  <div class="processing-sub" id="processing-sub">Analyzing click positions</div>
+<div class="proc" id="proc">
+  <div class="spin"></div>
+  <div class="proc-title">✨ Adding Zoom Effects</div>
+  <div class="proc-sub" id="proc-sub">Processing...</div>
+  <div class="proc-bar-wrap"><div class="proc-bar" id="proc-bar"></div></div>
 </div>
 
-<!-- Title Bar -->
-<div class="titlebar">
-  <div class="titlebar-logo"><div class="dot"></div>FocusRec</div>
-  <div class="titlebar-spacer"></div>
-  <div class="titlebar-controls">
-    <button class="win-btn" onclick="window.electronAPI.windowMinimize()">─</button>
-    <button class="win-btn" onclick="window.electronAPI.windowMaximize()">□</button>
-    <button class="win-btn close" onclick="window.electronAPI.windowClose()">✕</button>
+<div class="tb">
+  <div class="tb-logo"><div class="tb-dot"></div>FocusRec</div>
+  <div class="tb-controls">
+    <button class="wb" onclick="window.electronAPI.windowMinimize()">─</button>
+    <button class="wb" onclick="window.electronAPI.windowMaximize()">□</button>
+    <button class="wb cl" onclick="window.electronAPI.windowClose()">✕</button>
   </div>
 </div>
 
-<div class="app-body">
+<div class="body">
   <nav class="sidebar">
-    <div class="nav-section-label">Recording</div>
-    <div class="nav-item active" onclick="showPage('record', this)">
+    <div class="nl">Recording</div>
+    <div class="ni active" onclick="showPage('record',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/></svg>
       Record
     </div>
-    <div class="nav-item" onclick="showPage('settings', this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      Settings
-    </div>
-    <div class="sidebar-bottom">
-      <div class="nav-section-label">Library</div>
-      <div class="nav-item" onclick="showPage('recordings', this)">
+    <div class="sb-bot">
+      <div class="nl">Library</div>
+      <div class="ni" onclick="showPage('recs',this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="3"/><path d="M10 8l6 4-6 4V8z" fill="currentColor" stroke="none"/></svg>
         Recordings
       </div>
     </div>
   </nav>
 
-  <main class="main-content">
-    <!-- Record Page -->
+  <main class="content">
     <div id="page-record" class="page active">
-      <div class="page-title">New Recording</div>
-      <div class="page-subtitle">Select a screen or window to capture</div>
+      <div class="pt">New Recording</div>
+      <div class="ps">Record your screen with automatic smooth zoom effects</div>
 
-      <button class="refresh-btn" onclick="loadSources()">
+      <div class="info-box">
+        💡 <strong>How it works:</strong> Start recording and use your screen normally. FocusRec tracks your cursor movements and clicks. When you stop, it automatically adds smooth spring-animated zoom effects — exactly like Recordly!
+      </div>
+
+      <button class="rbtn" onclick="loadSources()">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg>
         Refresh Sources
       </button>
 
-      <div class="sources-grid" id="sources-grid">
+      <div class="src-grid" id="src-grid">
         <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text2);font-size:13px;">
-          Click "Refresh Sources" to load available screens & windows
+          Click "Refresh Sources" to load screens & windows
         </div>
       </div>
 
       <div class="divider"></div>
 
-      <div class="settings-grid">
-        <div class="setting-card">
-          <div class="setting-label">Audio</div>
-          <div class="toggle-row">
-            <span class="toggle-name">Microphone</span>
-            <button class="toggle on" id="toggle-mic" onclick="toggleSetting(this, 'mic')"></button>
-          </div>
-          <div class="toggle-row">
-            <span class="toggle-name">System Audio</span>
-            <button class="toggle" id="toggle-sys" onclick="toggleSetting(this, 'sys')"></button>
-          </div>
+      <div class="sg">
+        <div class="sc">
+          <div class="sl">Audio</div>
+          <div class="tr"><span class="tn">Microphone</span><button class="tgl on" id="t-mic" onclick="this.classList.toggle('on')"></button></div>
         </div>
-        <div class="setting-card">
-          <div class="setting-label">Quality</div>
-          <div style="margin-bottom:10px;">
-            <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">Resolution</div>
-            <select id="quality-select">
-              <option value="1080">1080p (Full HD)</option>
-              <option value="720" selected>720p (HD)</option>
-              <option value="480">480p</option>
-            </select>
+        <div class="sc">
+          <div class="sl">Quality</div>
+          <div style="margin-bottom:10px">
+            <div style="font-size:12px;color:var(--text2);margin-bottom:5px">Resolution</div>
+            <select id="res"><option value="1080">1080p Full HD</option><option value="720" selected>720p HD</option><option value="480">480p</option></select>
           </div>
           <div>
-            <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">Frame Rate</div>
-            <select id="fps-select">
-              <option value="60">60 FPS</option>
-              <option value="30" selected>30 FPS</option>
-            </select>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:5px">Frame Rate</div>
+            <select id="fps"><option value="30" selected>30 FPS</option><option value="60">60 FPS</option></select>
           </div>
         </div>
-        <div class="setting-card">
-          <div class="setting-label">🔍 Auto Zoom (FocuSee Style)</div>
-          <div class="toggle-row">
-            <span class="toggle-name">Enable Auto Zoom</span>
-            <button class="toggle on" id="toggle-zoom" onclick="toggleSetting(this, 'zoom')"></button>
+        <div class="sc">
+          <div class="sl">🔍 Auto Zoom</div>
+          <div class="tr"><span class="tn">Enable Auto Zoom</span><button class="tgl on" id="t-zoom" onclick="this.classList.toggle('on')"></button></div>
+          <div style="margin-top:10px">
+            <div style="font-size:12px;color:var(--text2);margin-bottom:4px">Zoom Level</div>
+            <input type="range" id="zoom-lvl" min="1.2" max="3" step="0.1" value="2" oninput="document.getElementById('zv').textContent=parseFloat(this.value).toFixed(1)+'x'">
+            <div class="rv" id="zv">2.0x</div>
           </div>
-          <div class="toggle-row">
-            <span class="toggle-name">Cursor Highlight</span>
-            <button class="toggle on" id="toggle-cursor" onclick="toggleSetting(this, 'cursor')"></button>
-          </div>
-          <div style="margin-top:8px;">
-            <div style="font-size:12px;color:var(--text2);margin-bottom:4px;">Zoom Strength</div>
-            <input type="range" id="zoom-strength" min="1.2" max="2.5" step="0.1" value="1.8"
-              oninput="document.getElementById('zoom-val').textContent=this.value+'x'">
-            <div class="range-val" id="zoom-val">1.8x</div>
+          <div style="margin-top:8px">
+            <div style="font-size:12px;color:var(--text2);margin-bottom:4px">Spring Smoothness</div>
+            <input type="range" id="smoothness" min="0" max="1" step="0.05" value="0.5" oninput="document.getElementById('sv').textContent=Math.round(this.value*100)+'%'">
+            <div class="rv" id="sv">50%</div>
           </div>
         </div>
-        <div class="setting-card">
-          <div class="setting-label">Cursor Effects</div>
-          <div style="margin-bottom:10px;">
-            <select id="cursor-style">
-              <option value="ripple" selected>Ripple</option>
-              <option value="circle">Circle Highlight</option>
-              <option value="spotlight">Spotlight</option>
-            </select>
+        <div class="sc">
+          <div class="sl">Zoom Duration</div>
+          <div style="margin-top:4px">
+            <div style="font-size:12px;color:var(--text2);margin-bottom:4px">Zoom In Duration</div>
+            <input type="range" id="zoom-in-dur" min="200" max="1000" step="50" value="400" oninput="document.getElementById('zid').textContent=this.value+'ms'">
+            <div class="rv" id="zid">400ms</div>
           </div>
-          <div>
-            <div style="font-size:12px;color:var(--text2);margin-bottom:4px;">Cursor Size</div>
-            <input type="range" id="cursor-size" min="20" max="80" step="5" value="40"
-              oninput="document.getElementById('cursor-size-val').textContent=this.value+'px'">
-            <div class="range-val" id="cursor-size-val">40px</div>
+          <div style="margin-top:8px">
+            <div style="font-size:12px;color:var(--text2);margin-bottom:4px">Zoom Out Duration</div>
+            <input type="range" id="zoom-out-dur" min="200" max="1500" step="50" value="600" oninput="document.getElementById('zod').textContent=this.value+'ms'">
+            <div class="rv" id="zod">600ms</div>
           </div>
         </div>
       </div>
 
-      <div class="record-controls">
-        <button class="btn btn-primary" id="btn-start" onclick="startRecording()">
+      <div class="rc">
+        <button class="btn btn-p" id="btn-start" onclick="startRec()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg>
           Start Recording
         </button>
-        <button class="btn btn-danger" id="btn-stop" onclick="stopRecording()" style="display:none">
+        <button class="btn btn-d" id="btn-stop" onclick="stopRec()" style="display:none">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
-          Stop Recording
+          Stop & Apply Zoom
         </button>
-        <div class="rec-badge" id="rec-badge"><div class="rec-dot"></div>REC</div>
-        <div class="timer" id="rec-timer">00:00</div>
-        <div class="click-counter" id="click-counter" style="display:none">🖱️ 0 clicks recorded</div>
+        <div class="rbadge" id="rbadge"><div class="rdot"></div>REC</div>
+        <div class="timer" id="timer">00:00</div>
+        <div class="cbadge" id="cbadge">🖱️ 0 cursor points</div>
       </div>
 
-      <div class="preview-section" id="preview-section">
-        <h3>Preview — Zoom effects applied ✨</h3>
-        <div class="preview-wrap">
-          <video id="preview-video" controls></video>
-        </div>
-        <div class="preview-actions">
-          <button class="btn btn-success" onclick="exportVideo()">
+      <div class="prev-sec" id="prev-sec">
+        <div style="font-size:15px;font-weight:600;margin-bottom:10px">Preview — Spring Zoom Applied ✨</div>
+        <div class="prev-wrap"><video id="prev-video" controls></video></div>
+        <div class="prev-actions">
+          <button class="btn btn-g" onclick="saveVideo()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Save Video
           </button>
-          <button class="btn btn-secondary" onclick="discardVideo()">Discard</button>
+          <button class="btn btn-s" onclick="discardVideo()">Discard</button>
         </div>
       </div>
     </div>
 
-    <!-- Recordings Page -->
-    <div id="page-recordings" class="page">
-      <div class="page-title">My Recordings</div>
-      <div class="page-subtitle">All your saved recordings</div>
-      <div id="recordings-list">
-        <div style="text-align:center;padding:60px 20px;color:var(--text2);">
-          <div style="font-size:48px;margin-bottom:12px;">🎬</div>
-          <div>No recordings yet. Start recording to see them here.</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Settings Page -->
-    <div id="page-settings" class="page">
-      <div class="page-title">Settings</div>
-      <div class="page-subtitle">Configure FocusRec</div>
-      <div class="settings-grid">
-        <div class="setting-card">
-          <div class="setting-label">About</div>
-          <div style="font-size:13px;line-height:2;color:var(--text2);">
-            <div>FocusRec <strong style="color:var(--text)">v1.0.0</strong></div>
-            <div>Auto Zoom: <strong style="color:var(--green)">Enabled</strong></div>
-            <div>FFmpeg: <strong style="color:var(--green)">Built-in</strong></div>
-          </div>
+    <div id="page-recs" class="page">
+      <div class="pt">My Recordings</div>
+      <div class="ps">All saved recordings</div>
+      <div id="recs-list">
+        <div style="text-align:center;padding:60px 20px;color:var(--text2)">
+          <div style="font-size:48px;margin-bottom:12px">🎬</div>No recordings yet.
         </div>
       </div>
     </div>
   </main>
 </div>
 
-<div class="status-bar">
-  <div class="status-dot" id="status-dot"></div>
-  <span id="status-text">Ready</span>
-  <span style="margin-left:auto;color:var(--text2)">FocusRec v1.0</span>
+<div class="sbar">
+  <div class="sdot" id="sdot"></div>
+  <span id="stext">Ready</span>
+  <span style="margin-left:auto">FocusRec v2.0</span>
 </div>
 
+<canvas id="proc-canvas" style="display:none"></canvas>
+
 <script>
-const state = {
-  selectedSource: null,
-  mediaRecorder: null,
+// ═══════════════════════════════════════════════════════
+// SPRING PHYSICS ENGINE — Ported from Recordly source
+// ═══════════════════════════════════════════════════════
+
+// Clamp delta time (same as Recordly's Rxa)
+function clampDelta(dt, fallback = 1000/60) {
+  return !Number.isFinite(dt) || dt <= 0 ? fallback : Math.min(80, Math.max(1, dt));
+}
+
+// Underdamped spring integration (same as Recordly's Nxa)
+function springIntegrate(dt, target, displacement, velocity, dampingRatio, angularFreq) {
+  if (dampingRatio < 1) {
+    const w = angularFreq * Math.sqrt(1 - dampingRatio * dampingRatio);
+    return target - Math.exp(-dampingRatio * angularFreq * dt) *
+      ((velocity + dampingRatio * angularFreq * displacement) / w * Math.sin(w * dt) +
+       displacement * Math.cos(w * dt));
+  }
+  if (dampingRatio === 1) {
+    return target - Math.exp(-angularFreq * dt) * (displacement + (velocity + angularFreq * displacement) * dt);
+  }
+  const w = angularFreq * Math.sqrt(dampingRatio * dampingRatio - 1);
+  const c = Math.exp(-dampingRatio * angularFreq * dt);
+  const i = Math.min(w * dt, 300);
+  return target - c * ((velocity + dampingRatio * angularFreq * displacement) * Math.sinh(i) +
+    w * displacement * Math.cosh(i)) / w;
+}
+
+// Build spring config from smoothness (same as Recordly's Txa + xxa)
+function buildSpringConfig(smoothness = 0.5, multipliers = {}) {
+  const t = Math.max(0, Math.min(1, smoothness));
+  let config;
+  if (t <= 0) {
+    config = { stiffness: 1000, damping: 100, mass: 1, restDelta: 1e-4, restSpeed: 0.001 };
+  } else {
+    const n = 2 * t;
+    config = { stiffness: 100 / n, damping: 21, mass: 1 * n, restDelta: 5e-4, restSpeed: 0.015 };
+  }
+  const sm = v => typeof v === 'number' && Number.isFinite(v) ? Math.max(0.01, v) : 1;
+  return {
+    ...config,
+    stiffness: config.stiffness * sm(multipliers.stiffness),
+    damping: config.damping * sm(multipliers.damping),
+    mass: config.mass * sm(multipliers.mass),
+  };
+}
+
+// Spring state
+function makeSpring(v = 0) {
+  return { value: v, velocity: 0, initialized: false };
+}
+
+// Reset spring (Recordly's Ixa)
+function resetSpring(spring, value) {
+  if (typeof value === 'number') spring.value = value;
+  spring.velocity = 0;
+  spring.initialized = false;
+}
+
+// Step spring toward target (Recordly's kxa)
+function stepSpring(spring, target, dt, config) {
+  const dtClamped = clampDelta(dt);
+  if (!spring.initialized || !Number.isFinite(spring.value)) {
+    spring.value = target; spring.velocity = 0; spring.initialized = true;
+    return spring.value;
+  }
+  const { restDelta = 5e-4, restSpeed = 0.02, stiffness, damping, mass } = config;
+  if (Math.abs(target - spring.value) <= restDelta && Math.abs(spring.velocity) <= restSpeed) {
+    spring.value = target; spring.velocity = 0;
+    return spring.value;
+  }
+  const angularFreq = Math.sqrt(stiffness / mass);
+  const dampingRatio = damping / (2 * Math.sqrt(stiffness * mass));
+  const displacement = spring.value - target;
+  const p = dtClamped / 1000;
+  const newValue = springIntegrate(p, target, displacement, -spring.velocity, dampingRatio, angularFreq);
+  spring.velocity = (newValue - spring.value) / p;
+  spring.value = newValue;
+  return spring.value;
+}
+
+// ═══════════════════════════════════════════════════════
+// ZOOM REGION SYSTEM — Ported from Recordly
+// ═══════════════════════════════════════════════════════
+
+// Calculate camera transform from zoom state (Recordly's fIa)
+function calcCameraTransform({ stageW, stageH, maskX, maskY, maskW, maskH, zoomScale, focusX, focusY, progress = 1 }) {
+  if (stageW <= 0 || stageH <= 0 || maskW <= 0 || maskH <= 0) return { scale: 1, x: 0, y: 0 };
+  const p = Math.min(1, Math.max(0, progress));
+  const cx = maskX + focusX * maskW;
+  const cy = maskY + focusY * maskH;
+  return {
+    scale: 1 + (zoomScale - 1) * p,
+    x: (stageW / 2 - cx * zoomScale) * p,
+    y: (stageH / 2 - cy * zoomScale) * p,
+  };
+}
+
+// Determine active zoom region at given time (Recordly's sIa)
+function getActiveZoom(zoomRegions, timeMs, { zoomInDurationMs = 400, zoomOutDurationMs = 600 } = {}) {
+  if (!zoomRegions || zoomRegions.length === 0) return { region: null, strength: 0, scale: null };
+
+  for (const region of zoomRegions) {
+    const { startMs, endMs } = region;
+    if (timeMs >= startMs && timeMs <= endMs) {
+      return { region, strength: 1, scale: region.scale };
+    }
+    // Zoom in transition
+    if (timeMs >= startMs - zoomInDurationMs && timeMs < startMs) {
+      const progress = (timeMs - (startMs - zoomInDurationMs)) / zoomInDurationMs;
+      return { region, strength: progress, scale: region.scale };
+    }
+    // Zoom out transition
+    if (timeMs > endMs && timeMs <= endMs + zoomOutDurationMs) {
+      const progress = 1 - (timeMs - endMs) / zoomOutDurationMs;
+      return { region, strength: Math.max(0, progress), scale: region.scale };
+    }
+  }
+  return { region: null, strength: 0, scale: null };
+}
+
+// ═══════════════════════════════════════════════════════
+// APP STATE
+// ═══════════════════════════════════════════════════════
+const S = {
+  source: null,
+  recorder: null,
   chunks: [],
-  recordedBlob: null,
-  timerInterval: null,
-  seconds: 0,
-  settings: { mic: true, sys: false, zoom: true, cursor: true },
-  recordings: [],
-  clicks: [], // Store click positions with timestamps
-  recordingStartTime: null,
-  screenWidth: window.screen.width,
-  screenHeight: window.screen.height,
+  rawBlob: null,
+  finalBlob: null,
+  // Cursor telemetry — array of {timeMs, cx, cy, click}
+  cursorTelemetry: [],
+  startTime: null,
+  timerInt: null,
+  secs: 0,
+  recs: [],
+  screenW: window.screen.width,
+  screenH: window.screen.height,
+  cursorInterval: null,
+  lastMouseX: 0,
+  lastMouseY: 0,
 };
 
-function showPage(pageId, navEl) {
+function showPage(id, el) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-' + pageId).classList.add('active');
-  if (navEl) navEl.classList.add('active');
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  if (el) el.classList.add('active');
 }
 
 async function loadSources() {
-  const grid = document.getElementById('sources-grid');
-  grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text2)">Loading...</div>';
+  const g = document.getElementById('src-grid');
+  g.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text2)">Loading...</div>';
   try {
     const sources = await window.electronAPI.getSources();
-    grid.innerHTML = '';
+    g.innerHTML = '';
     sources.forEach(src => {
-      const card = document.createElement('div');
-      card.className = 'source-card';
-      card.innerHTML = `<img class="source-thumb" src="${src.thumbnail}" /><div class="source-name" title="${src.name}">${src.name}</div>`;
-      card.onclick = () => {
-        document.querySelectorAll('.source-card').forEach(c => c.classList.remove('selected'));
-        card.classList.add('selected');
-        state.selectedSource = src;
+      const c = document.createElement('div');
+      c.className = 'src-card';
+      c.innerHTML = `<img class="src-thumb" src="${src.thumbnail}"><div class="src-name">${src.name}</div>`;
+      c.onclick = () => {
+        document.querySelectorAll('.src-card').forEach(x => x.classList.remove('sel'));
+        c.classList.add('sel'); S.source = src;
       };
-      grid.appendChild(card);
+      g.appendChild(c);
     });
-  } catch(e) {
-    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--red)">Error: ' + e.message + '</div>';
-  }
+  } catch(e) { g.innerHTML = `<div style="color:var(--red);padding:20px">Error: ${e.message}</div>`; }
 }
 
-function toggleSetting(btn, key) {
-  btn.classList.toggle('on');
-  if (key) state.settings[key] = btn.classList.contains('on');
-}
-
-// Track mouse clicks during recording
-function onMouseClick(e) {
-  if (!state.recordingStartTime) return;
-  const elapsed = Date.now() - state.recordingStartTime;
-  const nx = e.screenX / state.screenWidth;
-  const ny = e.screenY / state.screenHeight;
-  state.clicks.push({ time: elapsed, nx, ny, x: e.screenX, y: e.screenY });
-  
-  // Update counter
-  const counter = document.getElementById('click-counter');
-  counter.textContent = `🖱️ ${state.clicks.length} clicks recorded`;
-}
-
-async function startRecording() {
-  if (!state.selectedSource) { alert('Please select a screen or window first!'); return; }
+// ─── Recording ───────────────────────────────────────────
+async function startRec() {
+  if (!S.source) { alert('Please select a screen first!'); return; }
   try {
-    const constraints = {
+    const stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: {
-        mandatory: {
-          chromeMediaSource: 'desktop',
-          chromeMediaSourceId: state.selectedSource.id,
-          maxFrameRate: parseInt(document.getElementById('fps-select').value),
-        }
-      }
-    };
-
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-
-    if (state.settings.mic) {
-      try {
-        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        micStream.getAudioTracks().forEach(t => stream.addTrack(t));
-      } catch(e) {}
-    }
-
-    state.chunks = [];
-    state.clicks = [];
-    state.recordingStartTime = Date.now();
-
-    state.mediaRecorder = new MediaRecorder(stream, {
-      mimeType: 'video/webm;codecs=vp9',
-      videoBitsPerSecond: 4 * 1024 * 1024,
+      video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: S.source.id, maxFrameRate: parseInt(document.getElementById('fps').value) }}
     });
-    state.mediaRecorder.ondataavailable = e => { if (e.data.size > 0) state.chunks.push(e.data); };
-    state.mediaRecorder.onstop = () => {
-      stream.getTracks().forEach(t => t.stop());
-      state.recordedBlob = new Blob(state.chunks, { type: 'video/webm' });
-      processAndPreview();
-    };
-    state.mediaRecorder.start(100);
+    if (document.getElementById('t-mic').classList.contains('on')) {
+      try { const m = await navigator.mediaDevices.getUserMedia({ audio: true, video: false }); m.getAudioTracks().forEach(t => stream.addTrack(t)); } catch(e) {}
+    }
+    S.chunks = []; S.cursorTelemetry = []; S.startTime = Date.now();
+    S.recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 5 * 1024 * 1024 });
+    S.recorder.ondataavailable = e => { if (e.data.size > 0) S.chunks.push(e.data); };
+    S.recorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); S.rawBlob = new Blob(S.chunks, { type: 'video/webm' }); processZoom(); };
+    S.recorder.start(200);
 
-    // Add click listener
-    document.addEventListener('click', onMouseClick);
-    window.addEventListener('click', onMouseClick);
+    // Track cursor position every 16ms (60fps telemetry — like Recordly)
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mousedown', onMouseClick);
+    S.cursorInterval = setInterval(recordCursorPos, 50); // 20fps telemetry
 
     document.getElementById('btn-start').style.display = 'none';
     document.getElementById('btn-stop').style.display = '';
-    document.getElementById('rec-badge').classList.add('visible');
-    document.getElementById('click-counter').style.display = '';
-    document.getElementById('status-dot').classList.add('recording');
-    document.getElementById('status-text').textContent = 'Recording...';
-
-    window.electronAPI.showOverlay();
-    state.seconds = 0;
-    updateTimer();
-    state.timerInterval = setInterval(updateTimer, 1000);
-
-  } catch(e) {
-    alert('Could not start recording: ' + e.message);
-  }
+    document.getElementById('rbadge').classList.add('v');
+    document.getElementById('cbadge').style.display = '';
+    document.getElementById('sdot').classList.add('rec');
+    document.getElementById('stext').textContent = 'Recording — cursor being tracked for zoom';
+    S.secs = 0; tick(); S.timerInt = setInterval(tick, 1000);
+  } catch(e) { alert('Could not start: ' + e.message); }
 }
 
-function updateTimer() {
-  const m = String(Math.floor(state.seconds / 60)).padStart(2, '0');
-  const s = String(state.seconds % 60).padStart(2, '0');
-  document.getElementById('rec-timer').textContent = m + ':' + s;
-  state.seconds++;
+function onMouseMove(e) {
+  S.lastMouseX = e.screenX; S.lastMouseY = e.screenY;
 }
 
-function stopRecording() {
-  document.removeEventListener('click', onMouseClick);
-  window.removeEventListener('click', onMouseClick);
+function onMouseClick(e) {
+  if (!S.startTime) return;
+  const timeMs = Date.now() - S.startTime;
+  const cx = Math.min(Math.max(e.screenX / S.screenW, 0), 1);
+  const cy = Math.min(Math.max(e.screenY / S.screenH, 0), 1);
+  S.cursorTelemetry.push({ timeMs, cx, cy, click: true });
+  updateBadge();
+}
 
-  if (state.mediaRecorder) state.mediaRecorder.stop();
-  clearInterval(state.timerInterval);
-  window.electronAPI.hideOverlay();
+function recordCursorPos() {
+  if (!S.startTime) return;
+  const timeMs = Date.now() - S.startTime;
+  const cx = Math.min(Math.max(S.lastMouseX / S.screenW, 0), 1);
+  const cy = Math.min(Math.max(S.lastMouseY / S.screenH, 0), 1);
+  S.cursorTelemetry.push({ timeMs, cx, cy, click: false });
+}
 
+function updateBadge() {
+  const clicks = S.cursorTelemetry.filter(p => p.click).length;
+  document.getElementById('cbadge').textContent = `🖱️ ${clicks} click${clicks !== 1 ? 's' : ''} tracked`;
+}
+
+function tick() {
+  const m = String(Math.floor(S.secs / 60)).padStart(2, '0');
+  const s = String(S.secs % 60).padStart(2, '0');
+  document.getElementById('timer').textContent = m + ':' + s;
+  S.secs++;
+}
+
+function stopRec() {
+  clearInterval(S.timerInt);
+  clearInterval(S.cursorInterval);
+  document.removeEventListener('mousemove', onMouseMove);
+  document.removeEventListener('mousedown', onMouseClick);
+  if (S.recorder) S.recorder.stop();
   document.getElementById('btn-start').style.display = '';
   document.getElementById('btn-stop').style.display = 'none';
-  document.getElementById('rec-badge').classList.remove('visible');
-  document.getElementById('status-dot').classList.remove('recording');
-  document.getElementById('status-text').textContent = 'Processing zoom effects...';
+  document.getElementById('rbadge').classList.remove('v');
+  document.getElementById('sdot').classList.remove('rec');
+  document.getElementById('stext').textContent = 'Processing zoom effects...';
 }
 
-// Process video with zoom effects (FocuSee style)
-async function processAndPreview() {
-  if (!state.settings.zoom || state.clicks.length === 0) {
-    // No zoom needed, show directly
-    showPreview(state.recordedBlob);
-    document.getElementById('status-text').textContent = 'Ready';
+// ═══════════════════════════════════════════════════════
+// BUILD ZOOM REGIONS FROM CURSOR TELEMETRY
+// (Recordly generates zoom regions automatically from clicks)
+// ═══════════════════════════════════════════════════════
+function buildZoomRegions(telemetry, zoomScale, zoomInDur, zoomOutDur) {
+  const clicks = telemetry.filter(p => p.click);
+  if (clicks.length === 0) return [];
+
+  const regions = [];
+  const holdDur = 1200; // hold zoom for 1.2s after click
+
+  for (let i = 0; i < clicks.length; i++) {
+    const click = clicks[i];
+    const startMs = click.timeMs;
+    const endMs = startMs + holdDur;
+
+    // Check if next click is close enough to merge/connect
+    const next = clicks[i + 1];
+    const actualEnd = next && next.timeMs < endMs + zoomOutDur ? next.timeMs - zoomInDur : endMs;
+
+    regions.push({
+      id: i,
+      startMs,
+      endMs: Math.max(startMs + 100, actualEnd),
+      focus: { cx: click.cx, cy: click.cy },
+      scale: zoomScale,
+    });
+  }
+  return regions;
+}
+
+// Get cursor position at given time (interpolated — like Recordly's getCursorAt)
+function getCursorAt(telemetry, timeMs) {
+  if (!telemetry || telemetry.length === 0) return null;
+  if (timeMs <= telemetry[0].timeMs) return telemetry[0];
+  if (timeMs >= telemetry[telemetry.length - 1].timeMs) return telemetry[telemetry.length - 1];
+  let lo = 0, hi = telemetry.length - 1;
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >> 1;
+    telemetry[mid].timeMs <= timeMs ? lo = mid : hi = mid;
+  }
+  const a = telemetry[lo], b = telemetry[hi];
+  const range = b.timeMs - a.timeMs;
+  const t = range > 0 ? (timeMs - a.timeMs) / range : 0;
+  return { cx: a.cx + (b.cx - a.cx) * t, cy: a.cy + (b.cy - a.cy) * t, timeMs };
+}
+
+// ═══════════════════════════════════════════════════════
+// ZOOM PROCESSING — Canvas + Spring Physics
+// ═══════════════════════════════════════════════════════
+async function processZoom() {
+  const doZoom = document.getElementById('t-zoom').classList.contains('on');
+  const clicks = S.cursorTelemetry.filter(p => p.click);
+
+  if (!doZoom || clicks.length === 0) {
+    S.finalBlob = S.rawBlob;
+    showPreview(S.rawBlob);
+    document.getElementById('stext').textContent = clicks.length === 0
+      ? 'Done! Tip: click on screen during recording to add zoom points.'
+      : 'Done!';
     return;
   }
 
-  // Show processing overlay
-  document.getElementById('processing-overlay').classList.add('visible');
-  document.getElementById('processing-sub').textContent = `Processing ${state.clicks.length} zoom points...`;
+  setProc(true, 'Loading video...', 0);
 
-  try {
-    // Save raw video to temp
-    const buf = await state.recordedBlob.arrayBuffer();
-    const tempInput = await window.electronAPI.getTempPath('focusrec_raw.webm');
-    const tempOutput = await window.electronAPI.getTempPath('focusrec_zoom.mp4');
+  const zoomScale = parseFloat(document.getElementById('zoom-lvl').value);
+  const smoothness = parseFloat(document.getElementById('smoothness').value);
+  const zoomInDur = parseInt(document.getElementById('zoom-in-dur').value);
+  const zoomOutDur = parseInt(document.getElementById('zoom-out-dur').value);
+  const FPS = 30;
 
-    await window.electronAPI.saveVideo({
-      buffer: Array.from(new Uint8Array(buf)),
-      filePath: tempInput
-    });
+  // Build zoom regions from clicks
+  const zoomRegions = buildZoomRegions(S.cursorTelemetry, zoomScale, zoomInDur, zoomOutDur);
 
-    const quality = document.getElementById('quality-select').value;
-    const w = quality === '1080' ? 1920 : quality === '720' ? 1280 : 854;
-    const h = quality === '1080' ? 1080 : quality === '720' ? 720 : 480;
-    const zoomStrength = parseFloat(document.getElementById('zoom-strength').value);
+  const video = document.createElement('video');
+  video.src = URL.createObjectURL(S.rawBlob);
+  video.muted = true;
+  await new Promise(r => { video.onloadedmetadata = r; });
+  await new Promise(r => { video.onseeked = r; video.currentTime = 0; });
 
-    document.getElementById('processing-sub').textContent = 'Applying cinematic zoom effects...';
+  const VW = video.videoWidth, VH = video.videoHeight;
+  const totalDur = video.duration;
+  const totalFrames = Math.floor(totalDur * FPS);
 
-    const result = await window.electronAPI.processVideo({
-      inputPath: tempInput,
-      outputPath: tempOutput,
-      clicks: state.clicks,
-      duration: state.seconds * 1000,
-      width: w,
-      height: h,
-      zoomStrength
-    });
+  const canvas = document.getElementById('proc-canvas');
+  canvas.width = VW; canvas.height = VH;
+  const ctx = canvas.getContext('2d');
 
-    document.getElementById('processing-overlay').classList.remove('visible');
+  // Spring cameras — exactly like Recordly
+  const springScale = makeSpring(1);
+  const springX = makeSpring(0);
+  const springY = makeSpring(0);
+  const springConfig = buildSpringConfig(smoothness);
 
-    if (result.success) {
-      // Load processed video
-      const response = await fetch('file://' + tempOutput.replace(/\\/g, '/'));
-      const blob = await response.blob();
-      state.processedBlob = blob;
-      state.processedPath = tempOutput;
-      showPreview(blob);
-      document.getElementById('status-text').textContent = result.fallback ? 'Ready (zoom unavailable)' : 'Zoom effects applied! ✨';
-    } else {
-      showPreview(state.recordedBlob);
-      document.getElementById('status-text').textContent = 'Ready';
-    }
+  // Output recorder
+  const outStream = canvas.captureStream(FPS);
+  const outChunks = [];
+  const outRec = new MediaRecorder(outStream, { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 6 * 1024 * 1024 });
+  outRec.ondataavailable = e => { if (e.data.size > 0) outChunks.push(e.data); };
+  outRec.onstop = () => {
+    setProc(true, 'Finalizing...', 97);
+    setTimeout(() => {
+      S.finalBlob = new Blob(outChunks, { type: 'video/webm' });
+      setProc(false);
+      showPreview(S.finalBlob);
+      document.getElementById('stext').textContent = `✨ Spring zoom applied at ${clicks.length} point${clicks.length !== 1 ? 's' : ''}!`;
+    }, 300);
+  };
 
-  } catch(e) {
-    document.getElementById('processing-overlay').classList.remove('visible');
-    showPreview(state.recordedBlob);
-    document.getElementById('status-text').textContent = 'Ready';
+  outRec.start(200);
+
+  let frame = 0;
+  let lastFrameTimeMs = 0;
+
+  function renderNext() {
+    if (frame >= totalFrames) { outRec.stop(); return; }
+
+    video.currentTime = frame / FPS;
+    video.onseeked = () => {
+      const timeMs = frame * (1000 / FPS);
+      const dtMs = frame === 0 ? 1000 / FPS : timeMs - lastFrameTimeMs;
+      lastFrameTimeMs = timeMs;
+
+      // Get active zoom at this time
+      const { region, strength, scale } = getActiveZoom(zoomRegions, timeMs, { zoomInDurationMs: zoomInDur, zoomOutDurationMs: zoomOutDur });
+
+      // Target zoom state
+      let targetScale = 1, targetFocusX = 0.5, targetFocusY = 0.5;
+      if (region && strength > 0) {
+        targetScale = 1 + (region.scale - 1) * strength;
+
+        // Cursor-following zoom — use cursor telemetry to follow cursor inside zoom region
+        const cursor = getCursorAt(S.cursorTelemetry, timeMs);
+        if (cursor) {
+          // Blend between click focus and cursor position
+          const blendT = Math.min(1, strength * 2);
+          targetFocusX = region.focus.cx * (1 - blendT * 0.3) + cursor.cx * (blendT * 0.3);
+          targetFocusY = region.focus.cy * (1 - blendT * 0.3) + cursor.cy * (blendT * 0.3);
+        } else {
+          targetFocusX = region.focus.cx;
+          targetFocusY = region.focus.cy;
+        }
+      }
+
+      // Calculate target camera transform
+      const target = calcCameraTransform({
+        stageW: VW, stageH: VH,
+        maskX: 0, maskY: 0, maskW: VW, maskH: VH,
+        zoomScale: targetScale,
+        focusX: targetFocusX,
+        focusY: targetFocusY,
+        progress: 1,
+      });
+
+      // Apply spring physics (exactly like Recordly)
+      const appliedScale = stepSpring(springScale, target.scale, dtMs, springConfig);
+      const appliedX = stepSpring(springX, target.x, dtMs, springConfig);
+      const appliedY = stepSpring(springY, target.y, dtMs, springConfig);
+
+      // Draw frame with spring-animated zoom
+      ctx.clearRect(0, 0, VW, VH);
+      ctx.save();
+
+      if (Math.abs(appliedScale - 1) < 0.001 && Math.abs(appliedX) < 0.5 && Math.abs(appliedY) < 0.5) {
+        // No zoom — draw directly
+        ctx.drawImage(video, 0, 0, VW, VH);
+      } else {
+        // Apply spring camera transform
+        const cropW = VW / appliedScale;
+        const cropH = VH / appliedScale;
+        // Convert x,y offset to source crop position
+        const srcX = Math.min(Math.max((VW / 2 - appliedX) / appliedScale - cropW / 2, 0), VW - cropW);
+        const srcY = Math.min(Math.max((VH / 2 - appliedY) / appliedScale - cropH / 2, 0), VH - cropH);
+        ctx.drawImage(video, srcX, srcY, cropW, cropH, 0, 0, VW, VH);
+
+        // Draw cursor ripple effect at click position
+        if (region && strength > 0.1) {
+          const cursor = getCursorAt(S.cursorTelemetry, timeMs);
+          if (cursor) {
+            const screenX = (cursor.cx * VW - srcX) * appliedScale;
+            const screenY = (cursor.cy * VH - srcY) * appliedScale;
+            if (screenX >= 0 && screenX <= VW && screenY >= 0 && screenY <= VH) {
+              drawCursorRipple(ctx, screenX, screenY, timeMs, region.startMs);
+            }
+          }
+        }
+      }
+      ctx.restore();
+
+      frame++;
+      const pct = Math.floor((frame / totalFrames) * 92) + 5;
+      if (frame % 10 === 0) setProc(true, `Rendering frame ${frame} / ${totalFrames}`, pct);
+      setTimeout(renderNext, 0);
+    };
   }
+
+  setProc(true, `Processing ${clicks.length} zoom point${clicks.length !== 1 ? 's' : ''}...`, 5);
+  renderNext();
+}
+
+function drawCursorRipple(ctx, x, y, timeMs, eventStartMs) {
+  const age = timeMs - eventStartMs;
+  if (age < 0 || age > 600) return;
+  const progress = age / 600;
+  const alpha = (1 - progress) * 0.8;
+  const size = 10 + progress * 50;
+  ctx.save();
+  ctx.strokeStyle = `rgba(124,92,252,${alpha})`;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = `rgba(124,92,252,${alpha * 0.5})`;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(x, y, size * 0.55, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
+function setProc(show, text, pct) {
+  document.getElementById('proc').classList.toggle('v', show);
+  if (text) document.getElementById('proc-sub').textContent = text;
+  if (pct !== undefined) document.getElementById('proc-bar').style.width = pct + '%';
 }
 
 function showPreview(blob) {
-  const url = URL.createObjectURL(blob);
-  const video = document.getElementById('preview-video');
-  video.src = url;
-  document.getElementById('preview-section').classList.add('visible');
+  document.getElementById('prev-video').src = URL.createObjectURL(blob);
+  document.getElementById('prev-sec').classList.add('v');
 }
 
-async function exportVideo() {
-  const blob = state.processedBlob || state.recordedBlob;
-  if (!blob) return;
-
-  const ts = new Date().toISOString().replace(/[:.]/g,'-').slice(0,-5);
-  const filename = 'FocusRec_' + ts + '.mp4';
-  const filePath = await window.electronAPI.getSavePath(filename);
-  if (!filePath) return;
-
+async function saveVideo() {
+  const blob = S.finalBlob || S.rawBlob; if (!blob) return;
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+  const fp = await window.electronAPI.getSavePath('FocusRec_' + ts + '.webm');
+  if (!fp) return;
   const buf = await blob.arrayBuffer();
-  const result = await window.electronAPI.saveVideo({
-    buffer: Array.from(new Uint8Array(buf)),
-    filePath
-  });
-
-  if (result.success) {
-    const rec = { name: filename, path: filePath, date: new Date().toLocaleString(), duration: document.getElementById('rec-timer').textContent };
-    state.recordings.unshift(rec);
-    updateRecordingsList();
-    alert('Video saved! 🎉\n' + filePath);
-    discardVideo();
-  } else {
-    alert('Save failed: ' + result.error);
-  }
+  const res = await window.electronAPI.saveVideo({ buffer: Array.from(new Uint8Array(buf)), filePath: fp });
+  if (res.success) {
+    S.recs.unshift({ name: 'FocusRec_' + ts, path: fp, date: new Date().toLocaleString(), dur: document.getElementById('timer').textContent });
+    updateRecs(); alert('✅ Video saved!\n' + fp); discardVideo();
+  } else alert('Error: ' + res.error);
 }
 
 function discardVideo() {
-  state.recordedBlob = null;
-  state.processedBlob = null;
-  const video = document.getElementById('preview-video');
-  URL.revokeObjectURL(video.src);
-  video.src = '';
-  document.getElementById('preview-section').classList.remove('visible');
-  document.getElementById('rec-timer').textContent = '00:00';
-  document.getElementById('click-counter').style.display = 'none';
-  document.getElementById('click-counter').textContent = '🖱️ 0 clicks recorded';
+  S.rawBlob = null; S.finalBlob = null;
+  const v = document.getElementById('prev-video');
+  URL.revokeObjectURL(v.src); v.src = '';
+  document.getElementById('prev-sec').classList.remove('v');
+  document.getElementById('timer').textContent = '00:00';
+  document.getElementById('cbadge').style.display = 'none';
+  document.getElementById('stext').textContent = 'Ready';
 }
 
-function updateRecordingsList() {
-  const list = document.getElementById('recordings-list');
-  if (!state.recordings.length) return;
-  list.innerHTML = state.recordings.map((r, i) => `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;display:flex;align-items:center;gap:14px;margin-bottom:10px;">
-      <div style="font-size:24px;">🎥</div>
-      <div style="flex:1;">
-        <div style="font-size:14px;font-weight:600;margin-bottom:3px;">${r.name}</div>
-        <div style="font-size:12px;color:var(--text2);">${r.date} · ${r.duration}</div>
-      </div>
-      <button class="btn-sm" onclick="alert('Saved at: ${r.path}')" style="padding:6px 12px;font-size:12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;">Open Location</button>
-    </div>
-  `).join('');
+function updateRecs() {
+  const l = document.getElementById('recs-list');
+  if (!S.recs.length) return;
+  l.innerHTML = S.recs.map(r => `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <div style="font-size:24px">🎥</div>
+      <div style="flex:1"><div style="font-weight:600;font-size:14px;margin-bottom:3px">${r.name}</div>
+      <div style="font-size:12px;color:var(--text2)">${r.date} · ${r.dur}</div></div>
+    </div>`).join('');
 }
-
-// Track cursor for overlay
-document.addEventListener('mousemove', (e) => {
-  if (state.mediaRecorder && state.mediaRecorder.state === 'recording') {
-    window.electronAPI.updateCursor({ x: e.screenX, y: e.screenY });
-  }
-});
 </script>
 </body>
 </html>
