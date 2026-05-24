@@ -27,8 +27,7 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:
 .ni svg { width:16px; height:16px; flex-shrink:0; }
 .sb-bot { margin-top:auto; }
 .content { flex:1; overflow-y:auto; padding:24px 28px 50px; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
-.page { display:none; }
-.page.active { display:block; }
+.page { display:none; } .page.active { display:block; }
 .pt { font-size:20px; font-weight:700; margin-bottom:4px; }
 .ps { color:var(--text2); font-size:13px; margin-bottom:20px; }
 .src-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:10px; margin-bottom:20px; }
@@ -67,14 +66,15 @@ input[type=range] { width:100%; padding:4px 0; cursor:pointer; accent-color:var(
 @keyframes blink { 0%,100%{opacity:1}50%{opacity:.3} }
 .timer { font-family:'Courier New',monospace; font-size:13px; color:var(--text2); min-width:60px; }
 .cbadge { font-size:12px; color:var(--accent); padding:4px 10px; background:rgba(124,92,252,.1); border-radius:20px; border:1px solid rgba(124,92,252,.3); display:none; }
-.proc { display:none; position:fixed; inset:0; background:rgba(0,0,0,.9); z-index:999; flex-direction:column; align-items:center; justify-content:center; gap:16px; }
+.proc { display:none; position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:999; flex-direction:column; align-items:center; justify-content:center; gap:16px; }
 .proc.v { display:flex; }
 .spin { width:52px; height:52px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
 @keyframes spin { to{transform:rotate(360deg)} }
 .proc-title { font-size:18px; font-weight:700; }
 .proc-sub { font-size:13px; color:var(--text2); }
+.proc-prog { font-size:12px; color:var(--accent); font-family:'Courier New',monospace; }
 .proc-bar-wrap { width:320px; height:6px; background:var(--border); border-radius:3px; overflow:hidden; }
-.proc-bar { height:100%; background:linear-gradient(90deg,var(--accent),#5c9cfc); width:0%; transition:width .2s; border-radius:3px; }
+.proc-bar { height:100%; background:linear-gradient(90deg,var(--accent),#5c9cfc); width:0%; transition:width .3s; border-radius:3px; }
 .prev-sec { display:none; margin-top:20px; }
 .prev-sec.v { display:block; }
 .prev-wrap { background:#000; border-radius:var(--r); overflow:hidden; border:1px solid var(--border); }
@@ -96,7 +96,8 @@ video { width:100%; max-height:280px; display:block; }
 <div class="proc" id="proc">
   <div class="spin"></div>
   <div class="proc-title">✨ Adding Zoom Effects</div>
-  <div class="proc-sub" id="proc-sub">Processing...</div>
+  <div class="proc-sub" id="proc-sub">Playing video & applying spring zoom...</div>
+  <div class="proc-prog" id="proc-prog">0:00 / 0:00</div>
   <div class="proc-bar-wrap"><div class="proc-bar" id="proc-bar"></div></div>
 </div>
 
@@ -128,10 +129,10 @@ video { width:100%; max-height:280px; display:block; }
   <main class="content">
     <div id="page-record" class="page active">
       <div class="pt">New Recording</div>
-      <div class="ps">Record your screen with automatic smooth zoom effects</div>
+      <div class="ps">Record your screen with smooth spring zoom effects</div>
 
       <div class="info-box">
-        💡 <strong>How it works:</strong> Start recording and click anywhere on screen. FocusRec tracks every click and applies smooth spring-animated zoom — just like Recordly!
+        💡 <strong>How it works:</strong> Record normally and click on screen to mark zoom points. After stopping, the video plays once in background while zoom is applied smoothly — exactly like Recordly!
       </div>
 
       <button class="rbtn" onclick="loadSources()">
@@ -173,7 +174,7 @@ video { width:100%; max-height:280px; display:block; }
           </div>
           <div style="margin-top:8px">
             <div style="font-size:12px;color:var(--text2);margin-bottom:4px">Spring Smoothness</div>
-            <input type="range" id="smoothness" min="0" max="1" step="0.05" value="0.5" oninput="document.getElementById('sv').textContent=Math.round(this.value*100)+'%'">
+            <input type="range" id="smoothness" min="0.1" max="0.9" step="0.05" value="0.5" oninput="document.getElementById('sv').textContent=Math.round(this.value*100)+'%'">
             <div class="rv" id="sv">50%</div>
           </div>
         </div>
@@ -186,8 +187,8 @@ video { width:100%; max-height:280px; display:block; }
           </div>
           <div style="margin-top:8px">
             <div style="font-size:12px;color:var(--text2);margin-bottom:4px">Zoom Out</div>
-            <input type="range" id="zoom-out-dur" min="200" max="1500" step="50" value="600" oninput="document.getElementById('zod').textContent=this.value+'ms'">
-            <div class="rv" id="zod">600ms</div>
+            <input type="range" id="zoom-out-dur" min="200" max="2000" step="100" value="800" oninput="document.getElementById('zod').textContent=this.value+'ms'">
+            <div class="rv" id="zod">800ms</div>
           </div>
         </div>
       </div>
@@ -234,97 +235,84 @@ video { width:100%; max-height:280px; display:block; }
 <div class="sbar">
   <div class="sdot" id="sdot"></div>
   <span id="stext">Ready</span>
-  <span style="margin-left:auto">FocusRec v2.1</span>
+  <span style="margin-left:auto">FocusRec v3.0</span>
 </div>
 
 <canvas id="proc-canvas" style="display:none"></canvas>
 
 <script>
 // ═══════════════════════════════════════════
-// SPRING PHYSICS — from Recordly source
+// SPRING PHYSICS — Ported from Recordly
 // ═══════════════════════════════════════════
-
-function clampDelta(dt, fallback=1000/60) {
-  return !Number.isFinite(dt)||dt<=0 ? fallback : Math.min(80,Math.max(1,dt));
+function springIntegrate(dt, target, disp, vel, dr, af) {
+  if (dr < 1) {
+    const w = af * Math.sqrt(1 - dr*dr);
+    return target - Math.exp(-dr*af*dt) *
+      ((vel + dr*af*disp)/w * Math.sin(w*dt) + disp * Math.cos(w*dt));
+  }
+  if (dr === 1)
+    return target - Math.exp(-af*dt) * (disp + (vel + af*disp)*dt);
+  const w = af * Math.sqrt(dr*dr - 1);
+  const c = Math.exp(-dr*af*dt);
+  return target - c*((vel+dr*af*disp)*Math.sinh(Math.min(w*dt,300))+w*disp*Math.cosh(Math.min(w*dt,300)))/w;
 }
 
-function springIntegrate(dt, target, displacement, velocity, dampingRatio, angularFreq) {
-  if (dampingRatio < 1) {
-    const w = angularFreq * Math.sqrt(1 - dampingRatio*dampingRatio);
-    return target - Math.exp(-dampingRatio*angularFreq*dt) *
-      ((velocity + dampingRatio*angularFreq*displacement)/w * Math.sin(w*dt) +
-       displacement * Math.cos(w*dt));
+function makeSpring(v=0) { return {value:v, velocity:0, initialized:false}; }
+
+function stepSpring(sp, target, dtMs, cfg) {
+  const dt = Math.min(80, Math.max(1, dtMs)) / 1000;
+  if (!sp.initialized || !Number.isFinite(sp.value)) {
+    sp.value=target; sp.velocity=0; sp.initialized=true; return target;
   }
-  if (dampingRatio === 1) {
-    return target - Math.exp(-angularFreq*dt) * (displacement + (velocity+angularFreq*displacement)*dt);
+  if (Math.abs(target-sp.value) < (cfg.restDelta||5e-4) && Math.abs(sp.velocity) < (cfg.restSpeed||0.02)) {
+    sp.value=target; sp.velocity=0; return target;
   }
-  const w = angularFreq * Math.sqrt(dampingRatio*dampingRatio-1);
-  const c = Math.exp(-dampingRatio*angularFreq*dt);
-  const i = Math.min(w*dt, 300);
-  return target - c*((velocity+dampingRatio*angularFreq*displacement)*Math.sinh(i)+w*displacement*Math.cosh(i))/w;
+  const af = Math.sqrt(cfg.stiffness/cfg.mass);
+  const dr = cfg.damping/(2*Math.sqrt(cfg.stiffness*cfg.mass));
+  const newVal = springIntegrate(dt, target, sp.value-target, -sp.velocity, dr, af);
+  sp.velocity = (newVal - sp.value) / dt;
+  sp.value = newVal;
+  return newVal;
 }
 
-function buildSpringConfig(smoothness=0.5) {
-  const t = Math.max(0, Math.min(1, smoothness));
-  if (t <= 0) return { stiffness:1000, damping:100, mass:1, restDelta:1e-4, restSpeed:0.001 };
+function buildSpringCfg(smoothness) {
+  const t = Math.max(0.05, Math.min(0.95, smoothness));
   const n = 2*t;
-  return { stiffness:100/n, damping:21, mass:1*n, restDelta:5e-4, restSpeed:0.015 };
-}
-
-function makeSpring(v=0) { return { value:v, velocity:0, initialized:false }; }
-
-function stepSpring(spring, target, dt, config) {
-  const dtc = clampDelta(dt);
-  if (!spring.initialized || !Number.isFinite(spring.value)) {
-    spring.value=target; spring.velocity=0; spring.initialized=true; return spring.value;
-  }
-  const { restDelta=5e-4, restSpeed=0.02, stiffness, damping, mass } = config;
-  if (Math.abs(target-spring.value)<=restDelta && Math.abs(spring.velocity)<=restSpeed) {
-    spring.value=target; spring.velocity=0; return spring.value;
-  }
-  const af = Math.sqrt(stiffness/mass);
-  const dr = damping/(2*Math.sqrt(stiffness*mass));
-  const disp = spring.value - target;
-  const p = dtc/1000;
-  const newVal = springIntegrate(p, target, disp, -spring.velocity, dr, af);
-  spring.velocity = (newVal - spring.value) / p;
-  spring.value = newVal;
-  return spring.value;
+  return {stiffness:100/n, damping:21, mass:n, restDelta:1e-4, restSpeed:0.01};
 }
 
 // ═══════════════════════════════════════════
-// ZOOM REGION SYSTEM
+// ZOOM REGIONS
 // ═══════════════════════════════════════════
-
-function buildZoomRegions(telemetry, zoomScale, zoomInDur, zoomOutDur) {
-  const clicks = telemetry.filter(p => p.click);
+function buildZoomRegions(telemetry, scale, inDur, outDur) {
+  const clicks = telemetry.filter(p=>p.click);
   if (!clicks.length) return [];
-  const holdDur = 1200;
-  return clicks.map((click, i) => {
+  const hold = 1500;
+  return clicks.map((c,i) => {
     const next = clicks[i+1];
-    const endMs = next && next.timeMs < click.timeMs+holdDur+zoomOutDur
-      ? next.timeMs - zoomInDur
-      : click.timeMs + holdDur;
-    return {
-      id: i,
-      startMs: click.timeMs,
-      endMs: Math.max(click.timeMs+100, endMs),
-      focus: { cx: click.cx, cy: click.cy },
-      scale: zoomScale,
-    };
+    const end = next && next.timeMs < c.timeMs+hold+outDur
+      ? next.timeMs - inDur : c.timeMs + hold;
+    return { startMs:c.timeMs, endMs:Math.max(c.timeMs+200,end), cx:c.cx, cy:c.cy, scale };
   });
 }
 
-function getActiveZoom(regions, timeMs, zoomInDur, zoomOutDur) {
+function getZoomAt(regions, timeMs, inDur, outDur) {
   for (const r of regions) {
+    // Inside zoom
     if (timeMs >= r.startMs && timeMs <= r.endMs)
-      return { region:r, strength:1 };
-    if (timeMs >= r.startMs-zoomInDur && timeMs < r.startMs)
-      return { region:r, strength:(timeMs-(r.startMs-zoomInDur))/zoomInDur };
-    if (timeMs > r.endMs && timeMs <= r.endMs+zoomOutDur)
-      return { region:r, strength:Math.max(0, 1-(timeMs-r.endMs)/zoomOutDur) };
+      return { cx:r.cx, cy:r.cy, scale:r.scale, strength:1 };
+    // Zoom in transition
+    if (timeMs >= r.startMs-inDur && timeMs < r.startMs) {
+      const t = (timeMs-(r.startMs-inDur))/inDur;
+      return { cx:r.cx, cy:r.cy, scale:r.scale, strength:t };
+    }
+    // Zoom out transition
+    if (timeMs > r.endMs && timeMs <= r.endMs+outDur) {
+      const t = 1-(timeMs-r.endMs)/outDur;
+      return { cx:r.cx, cy:r.cy, scale:r.scale, strength:Math.max(0,t) };
+    }
   }
-  return { region:null, strength:0 };
+  return { cx:0.5, cy:0.5, scale:1, strength:0 };
 }
 
 function getCursorAt(telemetry, timeMs) {
@@ -343,9 +331,9 @@ function getCursorAt(telemetry, timeMs) {
 // ═══════════════════════════════════════════
 const S = {
   source:null, recorder:null, chunks:[], rawBlob:null, finalBlob:null,
-  cursorTelemetry:[], startTime:null, timerInt:null, secs:0, recs:[],
+  telemetry:[], startTime:null, timerInt:null, secs:0, recs:[],
   screenW:window.screen.width, screenH:window.screen.height,
-  cursorInterval:null, lastX:0, lastY:0,
+  cursorInt:null, lastX:0, lastY:0,
 };
 
 function showPage(id,el) {
@@ -384,22 +372,22 @@ async function startRec() {
     if(document.getElementById('t-mic').classList.contains('on')) {
       try{const m=await navigator.mediaDevices.getUserMedia({audio:true,video:false});m.getAudioTracks().forEach(t=>stream.addTrack(t));}catch(e){}
     }
-    S.chunks=[]; S.cursorTelemetry=[]; S.startTime=Date.now();
+    S.chunks=[]; S.telemetry=[]; S.startTime=Date.now();
     S.recorder=new MediaRecorder(stream,{mimeType:'video/webm;codecs=vp9',videoBitsPerSecond:5*1024*1024});
     S.recorder.ondataavailable=e=>{if(e.data.size>0)S.chunks.push(e.data);};
     S.recorder.onstop=()=>{stream.getTracks().forEach(t=>t.stop());S.rawBlob=new Blob(S.chunks,{type:'video/webm'});processZoom();};
-    S.recorder.start(200);
+    S.recorder.start(100);
 
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mousedown', onClick);
-    S.cursorInterval=setInterval(recordCursor, 50);
+    S.cursorInt=setInterval(saveCursor, 33); // ~30fps telemetry
 
     document.getElementById('btn-start').style.display='none';
     document.getElementById('btn-stop').style.display='';
     document.getElementById('rbadge').classList.add('v');
     document.getElementById('cbadge').style.display='';
     document.getElementById('sdot').classList.add('rec');
-    document.getElementById('stext').textContent='Recording — click anywhere to add zoom points';
+    document.getElementById('stext').textContent='Recording — click on screen to add zoom points';
     S.secs=0; tick(); S.timerInt=setInterval(tick,1000);
   } catch(e){alert('Could not start: '+e.message);}
 }
@@ -407,21 +395,21 @@ async function startRec() {
 function onMove(e){S.lastX=e.screenX;S.lastY=e.screenY;}
 function onClick(e){
   if(!S.startTime) return;
-  S.cursorTelemetry.push({timeMs:Date.now()-S.startTime,cx:Math.min(Math.max(e.screenX/S.screenW,0),1),cy:Math.min(Math.max(e.screenY/S.screenH,0),1),click:true});
-  const n=S.cursorTelemetry.filter(p=>p.click).length;
-  document.getElementById('cbadge').textContent=`🖱️ ${n} click${n!==1?'s':''}`;
+  const t={timeMs:Date.now()-S.startTime,cx:Math.min(Math.max(e.screenX/S.screenW,0.02),0.98),cy:Math.min(Math.max(e.screenY/S.screenH,0.02),0.98),click:true};
+  S.telemetry.push(t);
+  const n=S.telemetry.filter(p=>p.click).length;
+  document.getElementById('cbadge').textContent=`🖱️ ${n} zoom point${n!==1?'s':''}`;
 }
-function recordCursor(){
+function saveCursor(){
   if(!S.startTime) return;
-  S.cursorTelemetry.push({timeMs:Date.now()-S.startTime,cx:Math.min(Math.max(S.lastX/S.screenW,0),1),cy:Math.min(Math.max(S.lastY/S.screenH,0),1),click:false});
+  S.telemetry.push({timeMs:Date.now()-S.startTime,cx:Math.min(Math.max(S.lastX/S.screenW,0),1),cy:Math.min(Math.max(S.lastY/S.screenH,0),1),click:false});
 }
 function tick(){
-  const m=String(Math.floor(S.secs/60)).padStart(2,'0');
-  const s=String(S.secs%60).padStart(2,'0');
-  document.getElementById('timer').textContent=m+':'+s; S.secs++;
+  document.getElementById('timer').textContent=String(Math.floor(S.secs/60)).padStart(2,'0')+':'+String(S.secs%60).padStart(2,'0');
+  S.secs++;
 }
 function stopRec(){
-  clearInterval(S.timerInt); clearInterval(S.cursorInterval);
+  clearInterval(S.timerInt); clearInterval(S.cursorInt);
   document.removeEventListener('mousemove',onMove);
   document.removeEventListener('mousedown',onClick);
   if(S.recorder) S.recorder.stop();
@@ -429,163 +417,164 @@ function stopRec(){
   document.getElementById('btn-stop').style.display='none';
   document.getElementById('rbadge').classList.remove('v');
   document.getElementById('sdot').classList.remove('rec');
-  document.getElementById('stext').textContent='Processing zoom effects...';
+  document.getElementById('stext').textContent='Processing...';
 }
 
 // ═══════════════════════════════════════════
-// ZOOM PROCESSING — FIXED VERSION
+// ZOOM PROCESSING — REAL-TIME PLAYBACK METHOD
+// Video plays at normal speed, canvas renders zoom
+// Same approach as Recordly/OBS
 // ═══════════════════════════════════════════
 async function processZoom() {
-  const doZoom=document.getElementById('t-zoom').classList.contains('on');
-  const clicks=S.cursorTelemetry.filter(p=>p.click);
+  const doZoom = document.getElementById('t-zoom').classList.contains('on');
+  const clicks = S.telemetry.filter(p=>p.click);
 
-  if(!doZoom||clicks.length===0){
+  if (!doZoom || clicks.length===0) {
     S.finalBlob=S.rawBlob; showPreview(S.rawBlob);
-    document.getElementById('stext').textContent=clicks.length===0?'Done! Tip: click on screen while recording to add zoom points.':'Done!';
+    document.getElementById('stext').textContent = clicks.length===0
+      ? 'Done! Tip: click on screen while recording to add zoom points.' : 'Done!';
     return;
   }
 
-  setProc(true,'Loading video...',0);
+  setProc(true, 'Loading video...', 0);
 
-  // FIX 1: Properly load video with all metadata
-  const video=document.createElement('video');
-  video.preload='auto';
-  const videoURL=URL.createObjectURL(S.rawBlob);
-  video.src=videoURL;
-  video.muted=true;
+  const zoomScale  = parseFloat(document.getElementById('zoom-lvl').value);
+  const smoothness = parseFloat(document.getElementById('smoothness').value);
+  const inDur      = parseInt(document.getElementById('zoom-in-dur').value);
+  const outDur     = parseInt(document.getElementById('zoom-out-dur').value);
 
-  // Wait for full metadata including duration
-  await new Promise((resolve,reject)=>{
-    video.oncanplaythrough=resolve;
-    video.onerror=reject;
-    video.load();
-    setTimeout(resolve, 5000); // fallback timeout
-  });
+  const zoomRegions = buildZoomRegions(S.telemetry, zoomScale, inDur, outDur);
+  const springCfg   = buildSpringCfg(smoothness);
 
-  const VW=video.videoWidth||1280;
-  const VH=video.videoHeight||720;
-  // FIX 2: Use S.secs as fallback if duration is invalid
-  const totalDur=Number.isFinite(video.duration)&&video.duration>0 ? video.duration : S.secs;
-  const FPS=30;
-  const totalFrames=Math.floor(totalDur*FPS);
+  // Load source video
+  const video = document.createElement('video');
+  video.src = URL.createObjectURL(S.rawBlob);
+  video.muted = true;
+  video.playbackRate = 1.0;
 
-  if(totalFrames<=0){
-    S.finalBlob=S.rawBlob; showPreview(S.rawBlob);
-    setProc(false);
-    document.getElementById('stext').textContent='Done!';
-    return;
-  }
+  await new Promise(r => { video.oncanplaythrough=r; video.onerror=r; setTimeout(r,8000); });
 
-  const canvas=document.getElementById('proc-canvas');
+  const VW = video.videoWidth  || 1280;
+  const VH = video.videoHeight || 720;
+  const totalDur = Number.isFinite(video.duration) && video.duration > 0
+    ? video.duration : S.secs;
+
+  const canvas = document.getElementById('proc-canvas');
   canvas.width=VW; canvas.height=VH;
-  const ctx=canvas.getContext('2d');
+  const ctx = canvas.getContext('2d');
 
-  const zoomScale=parseFloat(document.getElementById('zoom-lvl').value);
-  const smoothness=parseFloat(document.getElementById('smoothness').value);
-  const zoomInDur=parseInt(document.getElementById('zoom-in-dur').value);
-  const zoomOutDur=parseInt(document.getElementById('zoom-out-dur').value);
+  // Spring state
+  const spScale = makeSpring(1);
+  const spCx    = makeSpring(0.5);
+  const spCy    = makeSpring(0.5);
 
-  const zoomRegions=buildZoomRegions(S.cursorTelemetry,zoomScale,zoomInDur,zoomOutDur);
-  const springCfg=buildSpringConfig(smoothness);
-  const springScale=makeSpring(1);
-  const springX=makeSpring(VW/2);
-  const springY=makeSpring(VH/2);
+  // Output recorder — captures canvas stream
+  const FPS = parseInt(document.getElementById('fps').value) || 30;
+  const outStream = canvas.captureStream(FPS);
+  const outChunks = [];
+  const outRec = new MediaRecorder(outStream, {
+    mimeType: 'video/webm;codecs=vp9',
+    videoBitsPerSecond: 8*1024*1024,
+  });
+  outRec.ondataavailable = e => { if(e.data.size>0) outChunks.push(e.data); };
 
-  // Output recorder
-  const outStream=canvas.captureStream(FPS);
-  const outChunks=[];
-  const outRec=new MediaRecorder(outStream,{mimeType:'video/webm;codecs=vp9',videoBitsPerSecond:6*1024*1024});
-  outRec.ondataavailable=e=>{if(e.data.size>0)outChunks.push(e.data);};
-  outRec.onstop=()=>{
-    URL.revokeObjectURL(videoURL);
-    setProc(true,'Finalizing...',97);
+  outRec.onstop = () => {
+    setProc(true,'Finalizing...',98);
     setTimeout(()=>{
-      S.finalBlob=new Blob(outChunks,{type:'video/webm'});
-      setProc(false); showPreview(S.finalBlob);
+      S.finalBlob = new Blob(outChunks,{type:'video/webm'});
+      setProc(false);
+      showPreview(S.finalBlob);
       document.getElementById('stext').textContent=`✨ Zoom applied at ${clicks.length} point${clicks.length!==1?'s':''}!`;
-    },300);
+    },400);
   };
 
-  outRec.start(200);
+  // rAF loop — runs at display refresh rate, perfectly smooth
+  let lastFrameTime = null;
+  let animId = null;
 
-  let frame=0;
-  const frameMs=1000/FPS;
-
-  // FIX 3: Use requestAnimationFrame approach instead of onseeked reassignment
-  function renderFrame() {
-    if(frame>=totalFrames){outRec.stop();return;}
-
-    const timeMs=frame*frameMs;
-    video.currentTime=timeMs/1000;
-
-    // Wait for seek to complete properly
-    const doRender=()=>{
-      const {region,strength}=getActiveZoom(zoomRegions,timeMs,zoomInDur,zoomOutDur);
-
-      let targetScale=1, targetCx=0.5, targetCy=0.5;
-      if(region&&strength>0){
-        targetScale=1+(region.scale-1)*strength;
-        const cursor=getCursorAt(S.cursorTelemetry,timeMs);
-        if(cursor){
-          targetCx=region.focus.cx*(1-strength*0.3)+cursor.cx*(strength*0.3);
-          targetCy=region.focus.cy*(1-strength*0.3)+cursor.cy*(strength*0.3);
-        } else {
-          targetCx=region.focus.cx; targetCy=region.focus.cy;
-        }
-      }
-
-      // Target position in canvas coords
-      const targetX=VW/2-(targetCx*VW)*targetScale+VW*(targetScale-1)/2;
-      const targetY=VH/2-(targetCy*VH)*targetScale+VH*(targetScale-1)/2;
-
-      // Apply spring physics
-      const dt=frameMs;
-      const appliedScale=stepSpring(springScale,targetScale,dt,springCfg);
-      const appliedX=stepSpring(springX,targetCx*VW,dt,springCfg);
-      const appliedY=stepSpring(springY,targetCy*VH,dt,springCfg);
-
-      // Draw zoomed frame
-      ctx.clearRect(0,0,VW,VH);
-      if(Math.abs(appliedScale-1)<0.005){
-        ctx.drawImage(video,0,0,VW,VH);
-      } else {
-        const cropW=VW/appliedScale;
-        const cropH=VH/appliedScale;
-        const srcX=Math.min(Math.max(appliedX-cropW/2,0),VW-cropW);
-        const srcY=Math.min(Math.max(appliedY-cropH/2,0),VH-cropH);
-        ctx.drawImage(video,srcX,srcY,cropW,cropH,0,0,VW,VH);
-
-        // Cursor ripple
-        if(region&&strength>0.05){
-          const cursor=getCursorAt(S.cursorTelemetry,timeMs);
-          if(cursor){
-            const dx=(cursor.cx*VW-srcX)*appliedScale;
-            const dy=(cursor.cy*VH-srcY)*appliedScale;
-            if(dx>=0&&dx<=VW&&dy>=0&&dy<=VH) drawRipple(ctx,dx,dy,timeMs,region.startMs);
-          }
-        }
-      }
-
-      frame++;
-      if(frame%15===0) setProc(true,`Rendering ${frame}/${totalFrames}`,Math.floor((frame/totalFrames)*92)+5);
-      setTimeout(renderFrame,0);
-    };
-
-    // FIX 3: One-time onseeked handler
-    if(Math.abs(video.currentTime-timeMs/1000)<0.05){
-      doRender();
-    } else {
-      video.onseeked=doRender;
+  function renderLoop(now) {
+    if (video.ended || video.paused) {
+      // Done
+      cancelAnimationFrame(animId);
+      outRec.stop();
+      return;
     }
+
+    const timeMs = video.currentTime * 1000;
+    const dt = lastFrameTime !== null ? now - lastFrameTime : 1000/FPS;
+    lastFrameTime = now;
+
+    // Get target zoom at current video time
+    const zoom = getZoomAt(zoomRegions, timeMs, inDur, outDur);
+
+    // Cursor-following: blend click focus with cursor position
+    let targetCx = zoom.cx, targetCy = zoom.cy;
+    if (zoom.strength > 0) {
+      const cursor = getCursorAt(S.telemetry, timeMs);
+      if (cursor) {
+        const blend = zoom.strength * 0.25;
+        targetCx = zoom.cx*(1-blend) + cursor.cx*blend;
+        targetCy = zoom.cy*(1-blend) + cursor.cy*blend;
+      }
+    }
+
+    // Target scale — interpolate to 1 when no zoom
+    const targetScale = zoom.strength > 0
+      ? 1 + (zoom.scale-1)*zoom.strength
+      : 1;
+
+    // Spring step — smooth camera (Recordly method)
+    const appliedScale = stepSpring(spScale, targetScale, dt, springCfg);
+    const appliedCx    = stepSpring(spCx, targetCx, dt, springCfg);
+    const appliedCy    = stepSpring(spCy, targetCy, dt, springCfg);
+
+    // Draw frame with zoom
+    ctx.clearRect(0,0,VW,VH);
+    if (Math.abs(appliedScale-1) < 0.003) {
+      ctx.drawImage(video, 0,0,VW,VH);
+    } else {
+      const cropW = VW/appliedScale;
+      const cropH = VH/appliedScale;
+      const srcX  = Math.min(Math.max(appliedCx*VW - cropW/2, 0), VW-cropW);
+      const srcY  = Math.min(Math.max(appliedCy*VH - cropH/2, 0), VH-cropH);
+      ctx.drawImage(video, srcX, srcY, cropW, cropH, 0,0,VW,VH);
+
+      // Cursor ripple effect
+      if (zoom.strength > 0.05) {
+        const cursor = getCursorAt(S.telemetry, timeMs);
+        if (cursor) {
+          const dx = (cursor.cx*VW - srcX)*appliedScale;
+          const dy = (cursor.cy*VH - srcY)*appliedScale;
+          if (dx>=0&&dx<=VW&&dy>=0&&dy<=VH) drawRipple(ctx, dx, dy, zoom.strength);
+        }
+      }
+    }
+
+    // Update progress
+    const pct = Math.floor((video.currentTime/totalDur)*95)+2;
+    const cur = fmtTime(video.currentTime);
+    const tot = fmtTime(totalDur);
+    setProc(true, `Applying spring zoom...`, pct, `${cur} / ${tot}`);
+
+    animId = requestAnimationFrame(renderLoop);
   }
 
-  setProc(true,`Processing ${clicks.length} zoom point${clicks.length!==1?'s':''}...`,5);
-  renderFrame();
+  // Start everything
+  outRec.start(200);
+  setProc(true, `Processing ${clicks.length} zoom point${clicks.length!==1?'s':''}...`, 2);
+
+  video.onended = () => {
+    cancelAnimationFrame(animId);
+    setTimeout(()=>outRec.stop(), 300);
+  };
+
+  await video.play();
+  animId = requestAnimationFrame(renderLoop);
 }
 
-function drawRipple(ctx,x,y,timeMs,startMs){
-  const age=timeMs-startMs; if(age<0||age>700) return;
-  const p=age/700, alpha=(1-p)*0.85, size=8+p*55;
+function drawRipple(ctx, x, y, strength) {
+  const alpha = strength * 0.7;
+  const size  = 20 + (1-strength)*30;
   ctx.save();
   ctx.strokeStyle=`rgba(124,92,252,${alpha})`; ctx.lineWidth=2.5;
   ctx.beginPath(); ctx.arc(x,y,size,0,Math.PI*2); ctx.stroke();
@@ -594,15 +583,23 @@ function drawRipple(ctx,x,y,timeMs,startMs){
   ctx.restore();
 }
 
-function setProc(show,text,pct){
+function fmtTime(s){
+  const m=Math.floor(s/60), sec=Math.floor(s%60);
+  return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+}
+
+function setProc(show,text,pct,prog){
   document.getElementById('proc').classList.toggle('v',show);
   if(text) document.getElementById('proc-sub').textContent=text;
   if(pct!==undefined) document.getElementById('proc-bar').style.width=pct+'%';
+  if(prog) document.getElementById('proc-prog').textContent=prog;
 }
+
 function showPreview(blob){
   document.getElementById('prev-video').src=URL.createObjectURL(blob);
   document.getElementById('prev-sec').classList.add('v');
 }
+
 async function saveVideo(){
   const blob=S.finalBlob||S.rawBlob; if(!blob) return;
   const ts=new Date().toISOString().replace(/[:.]/g,'-').slice(0,-5);
@@ -615,6 +612,7 @@ async function saveVideo(){
     updateRecs(); alert('✅ Video saved!\n'+fp); discardVideo();
   } else alert('Error: '+res.error);
 }
+
 function discardVideo(){
   S.rawBlob=null; S.finalBlob=null;
   const v=document.getElementById('prev-video'); URL.revokeObjectURL(v.src); v.src='';
@@ -623,6 +621,7 @@ function discardVideo(){
   document.getElementById('cbadge').style.display='none';
   document.getElementById('stext').textContent='Ready';
 }
+
 function updateRecs(){
   const l=document.getElementById('recs-list'); if(!S.recs.length) return;
   l.innerHTML=S.recs.map(r=>`
